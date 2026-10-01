@@ -685,57 +685,97 @@ public final class RagdollManager {
         double camY = camPos.y;
         double camZ = camPos.z;
 
-        for (Corpse corpse : corpses.values()) {
-            if (!corpse.renderReady || corpse.model == null) {
-                continue;
+        try {
+            for (Corpse corpse : corpses.values()) {
+                if (!corpse.renderReady || corpse.model == null) {
+                    continue;
+                }
+                ModelInstance instance = corpse.model.modelInstance();
+                if (instance == null || instance.getModelHandle() == 0L) {
+                    continue;
+                }
+                double dx = corpse.x - camX;
+                double dy = corpse.y - camY;
+                double dz = corpse.z - camZ;
+                if (dx * dx + dy * dy + dz * dz > RENDER_CULL_DISTANCE_SQ) {
+                    continue;
+                }
+
+                int packedLight = LevelRenderer.getLightColor(
+                        minecraft.level, BlockPos.containing(corpse.x, corpse.y + 0.5, corpse.z));
+                float posX = (float) (corpse.x * MODEL_SCALE);
+                float posY = (float) (corpse.y * MODEL_SCALE);
+                float posZ = (float) (corpse.z * MODEL_SCALE);
+                float yawRadians = corpse.yawDegrees * DEGREES_TO_RADIANS;
+
+                scenePort.setModelPositionAndYaw(instance.getModelHandle(), posX, posY, posZ, yawRadians);
+
+                poseStack.pushPose();
+                poseStack.translate((float) dx, (float) dy, (float) dz);
+
+                // LevelRenderer 在实体渲染后已关闭光照层（TAIL 注入点），
+                // 不重新打开会导致 entity 着色器采样到全黑光图 → 尸体黑模型
+                minecraft.gameRenderer.lightTexture().turnOnLightLayer();
+                try {
+                    RenderSystem.setShader(GameRenderer::getRendertypeEntityTranslucentShader);
+                    instance.render(
+                            minecraft.player,
+                            corpse.yawDegrees,
+                            0.0f,
+                            ZERO_TRANSLATION,
+                            tickDelta,
+                            poseStack,
+                            packedLight,
+                            RenderScene.WORLD
+                    );
+                    // 引擎在 render() 内部执行动画/物理更新：记一次"骨骼姿势已应用"
+                    corpse.renderedFrames++;
+                } finally {
+                    minecraft.gameRenderer.lightTexture().turnOffLightLayer();
+                }
+
+                poseStack.popPose();
+                // 渲染后再设一次：引擎内部 syncModelState 用玩家位置覆盖过模型位置
+                scenePort.setModelPositionAndYaw(instance.getModelHandle(), posX, posY, posZ, yawRadians);
             }
-            ModelInstance instance = corpse.model.modelInstance();
-            if (instance == null || instance.getModelHandle() == 0L) {
-                continue;
+        } finally {
+            repairUpstreamGlState(minecraft);
+        }
+    }
+
+    /**
+     * 引擎 GL 状态收尾修复（全部在本调用方完成，不改上游引擎源码）。
+     *
+     * <p>上游渲染器有几处已核实的状态缺陷，都会表现成"随机错误纹理/整体被染色"：
+     * <ul>
+     *   <li>裸 {@code GL46C.glBindTexture} 绕过 Mojang 的纹理绑定缓存（缓存与实际绑定
+     *       失同步，vanilla 下次绑回同缓存值时被跳过）→ unit0 用"绑 0"强制缓存再同步；</li>
+     *   <li>引擎把 MMD 光罩 id 写进共享 MC 着色器单例的 Sampler1/2（vanilla 光照/
+     *       overlay 单元被污染，窗口内整体染成光罩颜色）→ 渲染完把这两个槽位清空；</li>
+     *   <li>toon 路径裸 {@code glUseProgram(0)} 不清 ShaderInstance.lastProgramId →
+     *       {@code clear()} 复位；</li>
+     *   <li>上游状态恢复不在 finally 里，任何异常会把上述状态固化 → 这里兜底复位。</li>
+     * </ul>
+     */
+    private void repairUpstreamGlState(Minecraft minecraft) {
+        try {
+            RenderSystem.activeTexture(org.lwjgl.opengl.GL46C.GL_TEXTURE0);
+            RenderSystem.bindTexture(0);
+            net.minecraft.client.renderer.ShaderInstance shader = RenderSystem.getShader();
+            if (shader != null) {
+                shader.setSampler("Sampler1", null);
+                shader.setSampler("Sampler2", null);
+                shader.clear();
             }
-            double dx = corpse.x - camX;
-            double dy = corpse.y - camY;
-            double dz = corpse.z - camZ;
-            if (dx * dx + dy * dy + dz * dz > RENDER_CULL_DISTANCE_SQ) {
-                continue;
-            }
-
-            int packedLight = LevelRenderer.getLightColor(
-                    minecraft.level, BlockPos.containing(corpse.x, corpse.y + 0.5, corpse.z));
-            float posX = (float) (corpse.x * MODEL_SCALE);
-            float posY = (float) (corpse.y * MODEL_SCALE);
-            float posZ = (float) (corpse.z * MODEL_SCALE);
-            float yawRadians = corpse.yawDegrees * DEGREES_TO_RADIANS;
-
-            scenePort.setModelPositionAndYaw(instance.getModelHandle(), posX, posY, posZ, yawRadians);
-
-            poseStack.pushPose();
-            poseStack.translate((float) dx, (float) dy, (float) dz);
-
-            // LevelRenderer 在实体渲染后已关闭光照层（TAIL 注入点），
-            // 不重新打开会导致 entity 着色器采样到全黑光图 → 尸体黑模型
-            minecraft.gameRenderer.lightTexture().turnOnLightLayer();
-            try {
-                RenderSystem.setShader(GameRenderer::getRendertypeEntityTranslucentShader);
-                instance.render(
-                        minecraft.player,
-                        corpse.yawDegrees,
-                        0.0f,
-                        ZERO_TRANSLATION,
-                        tickDelta,
-                        poseStack,
-                        packedLight,
-                        RenderScene.WORLD
-                );
-                // 引擎在 render() 内部执行动画/物理更新：记一次"骨骼姿势已应用"
-                corpse.renderedFrames++;
-            } finally {
-                minecraft.gameRenderer.lightTexture().turnOffLightLayer();
-            }
-
-            poseStack.popPose();
-            // 渲染后再设一次：引擎内部 syncModelState 用玩家位置覆盖过模型位置
-            scenePort.setModelPositionAndYaw(instance.getModelHandle(), posX, posY, posZ, yawRadians);
+            RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
+            RenderSystem.enableDepthTest();
+            RenderSystem.depthMask(true);
+            RenderSystem.enableCull();
+            // 1.20.1 的 GlStateManager 没有 cull-mode 缓存/接口，裸 GL 复位即可
+            // （上游描边 pass 异常时会把 cullFace 停在 GL_FRONT 且 vanilla 永不修复）
+            org.lwjgl.opengl.GL46C.glCullFace(org.lwjgl.opengl.GL46C.GL_BACK);
+        } catch (Exception e) {
+            logger.debug("[Ragdoll] GL 状态修复失败（忽略）", e);
         }
     }
 
