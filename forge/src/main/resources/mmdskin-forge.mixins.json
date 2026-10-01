@@ -16,7 +16,9 @@
     "MinecraftMixin",
     "MouseHandlerMixin",
     "KeyboardInputMixin",
-    "EntityMixin"
+    "EntityMixin",
+    "DeathScreenMixin",
+    "LivingEntityDeathParticleMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -1,5 +1,6 @@
 package com.shiroha.mmdskin.player.animation;
 
+import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
 import com.shiroha.mmdskin.player.runtime.EntityAnimState;
 import com.shiroha.mmdskin.model.runtime.ManagedModel;
 import com.shiroha.mmdskin.player.sync.PlayerActionSyncService;
@@ -38,6 +39,10 @@ public class AnimationStateManager {
     }
 
     private static void updateLayer0Animation(AbstractClientPlayer player, ManagedModel model) {
+        // 死亡钩子：进 Die 状态前登记尸体（幂等；布娃娃就绪后实体路径渲染被取消）
+        if (player.getHealth() == 0.0f) {
+            RagdollManager.getInstance().tryEnterRagdoll(player, model);
+        }
         EntityAnimState.State target = resolveLayer0State(player);
         changeAnimationOnce(model, target, 0);
     }

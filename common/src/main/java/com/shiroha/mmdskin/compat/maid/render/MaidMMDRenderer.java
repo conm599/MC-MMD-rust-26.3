@@ -5,6 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.shiroha.mmdskin.compat.maid.runtime.MaidMMDModelManager;
 import com.shiroha.mmdskin.model.runtime.ManagedModel;
+import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
 import com.shiroha.mmdskin.player.runtime.EntityAnimState;
 import com.shiroha.mmdskin.render.scene.RenderScene;
 import java.util.UUID;
@@ -26,6 +27,11 @@ public class MaidMMDRenderer {
             int packedLight) {
         if (!MaidMMDModelManager.hasMMDModel(maidUUID)) {
             return false;
+        }
+
+        // 布娃娃就绪后取消女仆实体路径渲染（改由尸体模型渲染）
+        if (RagdollManager.getInstance().shouldSuppressEntityRender(entity)) {
+            return true;
         }
 
         ManagedModel modelData = MaidMMDModelManager.getModel(maidUUID);
@@ -74,6 +80,8 @@ public class MaidMMDRenderer {
         EntityAnimState.State targetState;
 
         if (entity.getHealth() <= 0) {
+            // 死亡钩子：登记尸体（幂等）
+            RagdollManager.getInstance().tryEnterRagdoll(entity, modelData);
             targetState = EntityAnimState.State.Die;
         } else if (entity.isSleeping()) {
             targetState = EntityAnimState.State.Sleep;

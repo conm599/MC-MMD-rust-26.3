@@ -1,6 +1,7 @@
 package com.shiroha.mmdskin.render.entity;
 
 import com.shiroha.mmdskin.model.runtime.ManagedModel;
+import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
 import com.shiroha.mmdskin.player.runtime.EntityAnimState;
 import com.shiroha.mmdskin.render.scene.MutableRenderPose;
 import net.minecraft.util.Mth;
@@ -29,6 +30,8 @@ public final class EntityAnimationResolver {
 
         if (entity instanceof LivingEntity living) {
             if (living.getHealth() <= 0.0f) {
+                // 死亡钩子：登记尸体（幂等；布娃娃就绪后实体路径渲染被取消）
+                RagdollManager.getInstance().tryEnterRagdoll(living, model);
                 changeAnimOnce(model, EntityAnimState.State.Die, 0);
                 return;
             }

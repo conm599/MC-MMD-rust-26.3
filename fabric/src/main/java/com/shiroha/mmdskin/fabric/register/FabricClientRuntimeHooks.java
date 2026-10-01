@@ -1,6 +1,7 @@
 package com.shiroha.mmdskin.fabric.register;
 
 import com.shiroha.mmdskin.player.sync.BoneSyncManager;
+import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
 import com.shiroha.mmdskin.config.UIConstants;
 import com.shiroha.mmdskin.debug.client.PerformanceHud;
 import com.shiroha.mmdskin.fabric.maid.MaidCompatMixinPlugin;
@@ -57,6 +58,8 @@ final class FabricClientRuntimeHooks {
         }
 
         ClientRenderRuntime.get().modelRepository().tick();
+        // 死亡布娃娃：尸体就绪检测 / 保留策略 / 相机劫持
+        RagdollManager.getInstance().tick(minecraft);
         StageClientRuntime.get().animSyncHelper().tickPending();
         BoneSyncManager.tickLocal();
 
@@ -111,6 +114,7 @@ final class FabricClientRuntimeHooks {
     }
 
     private void onDisconnect() {
+        RagdollManager.getInstance().clearAll();
         MMDCameraController.getInstance().exitStageMode();
         PlayerModelSyncService.onDisconnect();
         MmdSkinRendererPlayerHelper.onDisconnect();

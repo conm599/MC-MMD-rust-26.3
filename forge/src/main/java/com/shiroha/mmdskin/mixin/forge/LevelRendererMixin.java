@@ -1,5 +1,11 @@
 package com.shiroha.mmdskin.mixin.forge;
 
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.shiroha.mmdskin.player.ragdoll.RagdollRenderEntrypoint;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.LightTexture;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.shiroha.mmdskin.compat.vr.VRArmHider;
 import com.shiroha.mmdskin.forge.YsmCompat;
 import com.shiroha.mmdskin.player.runtime.FirstPersonManager;
@@ -59,5 +65,14 @@ public abstract class LevelRendererMixin {
         }
 
         return camera.isDetached();
+    }
+
+    /** 死亡布娃娃：实体渲染完成后画尸体（光照层由 RagdollManager 自己开关）。 */
+    @Inject(method = "renderLevel", at = @At("TAIL"))
+    private void mmd$onRenderLevelTail(PoseStack poseStack, float partialTick, long finishNanoTime,
+                                       boolean renderBlockOutline, Camera camera,
+                                       GameRenderer gameRenderer, LightTexture lightTexture,
+                                       org.joml.Matrix4f projectionMatrix, CallbackInfo ci) {
+        RagdollRenderEntrypoint.renderCorpses(poseStack, partialTick, camera);
     }
 }

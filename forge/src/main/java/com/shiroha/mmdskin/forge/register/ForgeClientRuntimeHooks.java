@@ -1,6 +1,7 @@
 package com.shiroha.mmdskin.forge.register;
 
 import com.shiroha.mmdskin.config.UIConstants;
+import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
 import com.shiroha.mmdskin.debug.client.PerformanceHud;
 import com.shiroha.mmdskin.forge.network.MmdSkinNetworkPack;
 import com.shiroha.mmdskin.player.sync.PlayerModelSyncService;
@@ -54,6 +55,8 @@ final class ForgeClientRuntimeHooks {
         }
 
         ClientRenderRuntime.get().modelRepository().tick();
+        // 死亡布娃娃：尸体就绪检测 / 保留策略 / 相机劫持
+        RagdollManager.getInstance().tick(minecraft);
         StageClientRuntime.get().animSyncHelper().tickPending();
 
         if (minecraft.screen == null || minecraft.screen instanceof ConfigWheelScreen) {
@@ -99,6 +102,7 @@ final class ForgeClientRuntimeHooks {
     }
 
     void onPlayerLoggedOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        RagdollManager.getInstance().clearAll();
         MMDCameraController.getInstance().exitStageMode();
         PlayerModelSyncService.onDisconnect();
         MmdSkinRendererPlayerHelper.onDisconnect();

@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.shiroha.mmdskin.model.runtime.ManagedModel;
 import com.shiroha.mmdskin.model.runtime.ModelRequestKey;
 import com.shiroha.mmdskin.model.runtime.ModelSubjectKind;
+import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
 import com.shiroha.mmdskin.render.bootstrap.ClientRenderRuntime;
 import com.shiroha.mmdskin.scene.client.SceneModelManager;
 import net.minecraft.client.Minecraft;
@@ -25,6 +26,11 @@ public final class PlayerMixinDelegate {
         PlayerRenderSelection selection = PlayerRenderSelectionResolver.resolve(player, isYsmActive);
         if (selection.hasTerminalAction()) {
             return selection.terminalAction();
+        }
+
+        // 布娃娃就绪后取消玩家路径渲染（尸体模型接管；仅对死亡实体本体生效）
+        if (RagdollManager.getInstance().shouldSuppressEntityRender(player)) {
+            return PlayerRenderAction.CANCEL;
         }
 
         ModelRequestKey requestKey = new ModelRequestKey(

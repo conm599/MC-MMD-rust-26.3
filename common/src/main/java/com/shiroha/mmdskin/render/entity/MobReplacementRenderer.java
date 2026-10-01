@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.shiroha.mmdskin.model.runtime.ManagedModel;
 import com.shiroha.mmdskin.model.runtime.ModelRequestKey;
+import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
 import com.shiroha.mmdskin.render.bootstrap.ClientRenderRuntime;
 import com.shiroha.mmdskin.render.policy.RenderPriorityService;
 import com.shiroha.mmdskin.render.scene.MutableRenderPose;
@@ -30,6 +31,11 @@ public final class MobReplacementRenderer {
 
         if (!RenderPriorityService.get().shouldUseMobReplacement(entity)) {
             return false;
+        }
+
+        // 布娃娃就绪后取消生物路径渲染（改由尸体模型渲染）
+        if (RagdollManager.getInstance().shouldSuppressEntityRender(entity)) {
+            return true;
         }
 
         try {

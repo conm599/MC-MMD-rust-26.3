@@ -1,6 +1,7 @@
 package com.shiroha.mmdskin.mixin.forge;
 
 import com.shiroha.mmdskin.config.RuntimeConfigPort;
+import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
 import com.shiroha.mmdskin.config.RuntimeConfigPortHolder;
 import com.shiroha.mmdskin.forge.YsmCompat;
 import com.shiroha.mmdskin.stage.client.camera.MMDCameraController;
@@ -29,6 +30,14 @@ public abstract class CameraMixin {
 
     @Inject(method = "setup", at = @At("TAIL"))
     private void onSetup(BlockGetter level, Entity entity, boolean detached, boolean mirrored, float partialTick, CallbackInfo ci) {
+
+        // 死亡观战相机接管（优先级最高：高于舞台相机与第一人称 MMD 相机）
+        double[] deathCam = RagdollManager.getInstance().deathCamTarget();
+        if (deathCam != null) {
+            this.setPosition(deathCam[0], deathCam[1], deathCam[2]);
+            this.setRotation((float) deathCam[3], (float) deathCam[4]);
+            return;
+        }
 
         MMDCameraController controller = MMDCameraController.getInstance();
         if (controller.isActive()) {
