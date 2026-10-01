@@ -23,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class EntityRenderDispatcherMixin {
 
     @Inject(method = "renderShadow", at = @At("HEAD"), cancellable = true)
-    private void mmd$onRenderShadow(PoseStack poseStack, MultiBufferSource bufferSource, Entity entity,
+    private static void mmd$onRenderShadow(PoseStack poseStack, MultiBufferSource bufferSource, Entity entity,
                                     float yaw, float partialTick, LevelReader level, float shadowRadius,
                                     CallbackInfo ci) {
         if (entity instanceof LivingEntity living
