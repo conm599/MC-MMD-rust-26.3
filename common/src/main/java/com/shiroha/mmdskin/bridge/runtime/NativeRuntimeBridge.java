@@ -17,12 +17,55 @@ public final class NativeRuntimeBridge implements
         NativeModelQueryPort,
         NativeMorphPort,
         NativeBoneOverridePort,
+        NativeRagdollPort,
         NativeScenePort,
         PlatformCapabilityPort {
     private static final Logger logger = LogManager.getLogger();
 
     private NativeFunc nativeFunc() {
         return NativeFunc.GetInst();
+    }
+
+    @Override
+    public boolean enterRagdoll(long modelHandle, float[] params) {
+        if (params == null || params.length != 16) {
+            logger.warn("enterRagdoll params 长度必须为 16，实际: {}",
+                    params == null ? "null" : params.length);
+            return false;
+        }
+        try {
+            return nativeFunc().RagdollEnable(modelHandle, params);
+        } catch (UnsatisfiedLinkError e) {
+            logger.warn("布娃娃 JNI 方法未找到，请重新编译 Rust 库");
+            return false;
+        }
+    }
+
+    @Override
+    public void disableRagdoll(long modelHandle) {
+        nativeFunc().RagdollDisable(modelHandle);
+    }
+
+    @Override
+    public void setRagdollGround(long modelHandle, float groundLocalY) {
+        nativeFunc().RagdollSetGround(modelHandle, groundLocalY);
+    }
+
+    @Override
+    public void applyRagdollVelocityDelta(long modelHandle, float vx, float vy, float vz,
+            float yawRadians, float worldToModelScale, boolean upperBodyOnly) {
+        nativeFunc().RagdollApplyVelocityDelta(modelHandle, vx, vy, vz, yawRadians,
+                worldToModelScale, upperBodyOnly);
+    }
+
+    @Override
+    public boolean isRagdollActive(long modelHandle) {
+        return nativeFunc().RagdollIsActive(modelHandle);
+    }
+
+    @Override
+    public String getRagdollDebugInfo(long modelHandle) {
+        return nativeFunc().RagdollGetDebugInfo(modelHandle);
     }
 
     @Override

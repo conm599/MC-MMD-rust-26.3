@@ -334,4 +334,20 @@ public class NativeFunc {
     public native void SetVRIKParams(long model, float armIKStrength);
 
     public native void SetVRHandMode(long model, int mode);
+
+    // ===== 死亡布娃娃 =====
+
+    /** 启用布娃娃。params 固定 16 float，契约见 NativeRagdollPort 注释；0 值段回退引擎默认。 */
+    public native boolean RagdollEnable(long model, float[] params);
+
+    public native void RagdollDisable(long model);
+
+    public native void RagdollSetGround(long model, float groundLocalY);
+
+    public native void RagdollApplyVelocityDelta(long model, float vx, float vy, float vz,
+        float yawRadians, float worldToModelScale, boolean upperBodyOnly);
+
+    public native boolean RagdollIsActive(long model);
+
+    public native String RagdollGetDebugInfo(long model);
 }
