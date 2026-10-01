@@ -82,8 +82,14 @@ public abstract class DeathScreenMixin extends Screen {
         cir.setReturnValue(true);
     }
 
-    @Inject(method = "mouseMoved", at = @At("HEAD"))
-    private void mmd$onMouseMoved(double mouseX, double mouseY, CallbackInfo ci) {
+    /**
+     * 观战模式：鼠标环视。
+     * 软覆盖——这两个方法继承自 Screen，不在 DeathScreen 本类上声明，
+     * 用字符串 @Inject 会让 refmap 生成不到条目，运行时找不到目标直接启动崩溃。
+     */
+    @Unique
+    @Override
+    public void mouseMoved(double mouseX, double mouseY) {
         if (mmd$lastMouseX < 0.0) {
             mmd$lastMouseX = mouseX;
             mmd$lastMouseY = mouseY;
@@ -97,13 +103,14 @@ public abstract class DeathScreenMixin extends Screen {
         mmd$lastMouseY = mouseY;
     }
 
-    @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true)
-    private void mmd$onMouseScrolled(double mouseX, double mouseY, double delta,
-                                     CallbackInfoReturnable<Boolean> cir) {
-        if (!RagdollManager.getInstance().isDeathCamObserve()) {
-            return;
+    /** 观战模式：滚轮缩放（软覆盖；未观战时返回 false，与原版默认行为等价）。 */
+    @Unique
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (RagdollManager.getInstance().isDeathCamObserve()) {
+            RagdollManager.getInstance().deathCamScroll(delta);
+            return true;
         }
-        RagdollManager.getInstance().deathCamScroll(delta);
-        cir.setReturnValue(true);
+        return false;
     }
 }
