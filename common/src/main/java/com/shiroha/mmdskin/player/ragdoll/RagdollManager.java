@@ -505,9 +505,14 @@ public final class RagdollManager {
     // ========================================================================
 
     /**
-     * 从 (x, y+0.5, z) 垂直向下射线取第一个实心方块顶面。
+     * 从 (x, y+0.5, z) 垂直向下射线取最高承托面（含液体表面）。
      *
-     * @param fallback 射线未命中时的返回值（保持当前地面，不突变）
+     * <p>必须含流体：只打实心方块的话，死亡点有水/岩浆时地面平面会落到液体底面，
+     * 尸体沉进液体方块里——液体在半透明通道写深度，尸体在通道结束后绘制，
+     * 被液面深度测试整块遮挡 → "贴图消失/创建失败"。取两条射线的较高命中，
+     * 尸体停在液体表面（视觉上躺在水/岩浆面上），可见且符合直觉。
+     *
+     * @param fallback 两条射线都未命中时的返回值（保持当前地面，不突变）
      */
     private double sampleGroundY(Level level, double x, double y, double z, double fallback) {
         if (level == null) {
@@ -516,14 +521,31 @@ public final class RagdollManager {
         try {
             Vec3 from = new Vec3(x, y + 0.5, z);
             Vec3 to = new Vec3(x, y - GROUND_RAY_MAX_DEPTH, z);
-            ClipContext clip = new ClipContext(
+            double ground = Double.NEGATIVE_INFINITY;
+
+            ClipContext solidClip = new ClipContext(
                     from, to,
                     ClipContext.Block.COLLIDER,
                     ClipContext.Fluid.NONE,
                     Minecraft.getInstance().player);
-            HitResult hit = level.clip(clip);
-            if (hit.getType() == HitResult.Type.BLOCK) {
-                return hit.getLocation().y;
+            HitResult solidHit = level.clip(solidClip);
+            if (solidHit.getType() == HitResult.Type.BLOCK) {
+                ground = solidHit.getLocation().y;
+            }
+
+            // 含流体二次采样：命中液体表面（水顶面 ≈ 0.875 格高）
+            ClipContext fluidClip = new ClipContext(
+                    from, to,
+                    ClipContext.Block.COLLIDER,
+                    ClipContext.Fluid.ANY,
+                    Minecraft.getInstance().player);
+            HitResult fluidHit = level.clip(fluidClip);
+            if (fluidHit.getType() == HitResult.Type.BLOCK) {
+                ground = Math.max(ground, fluidHit.getLocation().y);
+            }
+
+            if (ground != Double.NEGATIVE_INFINITY) {
+                return ground;
             }
         } catch (Exception e) {
             logger.debug("[Ragdoll] 地面射线检测失败，保持当前地面", e);
