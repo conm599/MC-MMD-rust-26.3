@@ -6,6 +6,7 @@ import com.shiroha.mmdskin.bridge.runtime.NativeModelLoadPort;
 import com.shiroha.mmdskin.bridge.runtime.NativeModelPort;
 import com.shiroha.mmdskin.bridge.runtime.NativeModelQueryPort;
 import com.shiroha.mmdskin.bridge.runtime.NativeMorphPort;
+import com.shiroha.mmdskin.bridge.runtime.NativeRagdollPort;
 import com.shiroha.mmdskin.bridge.runtime.NativeRenderBackendPort;
 import com.shiroha.mmdskin.bridge.runtime.NativeRuntimeBridgeHolder;
 import com.shiroha.mmdskin.bridge.runtime.NativeRuntimePort;
@@ -24,6 +25,7 @@ import com.shiroha.mmdskin.model.port.ModelRepositoryPort;
 import com.shiroha.mmdskin.model.runtime.DefaultModelRuntimeAccessPort;
 import com.shiroha.mmdskin.model.runtime.ManagedModel;
 import com.shiroha.mmdskin.model.runtime.ModelRepository;
+import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
 import com.shiroha.mmdskin.player.render.ItemRenderHelper;
 import com.shiroha.mmdskin.player.runtime.FirstPersonManager;
 import com.shiroha.mmdskin.api.MmdSkinApi;
@@ -71,6 +73,8 @@ public final class ClientRenderRuntime {
         FirstPersonManager.configureVrRuntime(new DefaultVrRuntimePort());
         LivingEntityModelStateHelper.configureRuntimeCollaborators(scenePort);
         SceneModelManager.getInstance().configureRuntimeCollaborators(scenePort);
+        RagdollManager.getInstance().configureRuntimeCollaborators(
+                (NativeRagdollPort) nativeRuntimePort, scenePort);
         ExpressionApplicationService.configureRuntimeCollaborators(morphPort);
         ModelMorphCatalog.configureRuntimeCollaborators(modelQueryPort);
         MmdSkinApi.configureRuntimeCollaborators(modelPort, modelQueryPort, boneOverridePort);
