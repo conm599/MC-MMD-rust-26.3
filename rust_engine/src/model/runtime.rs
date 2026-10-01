@@ -127,6 +127,9 @@ pub struct MmdModel {
     /// 骨骼变换缓冲区（避免每帧堆分配）
     physics_bone_transforms_buf: Vec<Mat4>,
 
+    /// 死亡布娃娃（接管身体主骨骼，独立于 MMD 物理）
+    ragdoll: Option<crate::ragdoll::MmdRagdoll>,
+
     // 材质可见性控制（用于脱外套等功能）
     material_visible: Vec<bool>,
     user_material_visible: Vec<bool>,
@@ -271,6 +274,7 @@ impl MmdModel {
             physics: None,
             physics_enabled: false,
             physics_bone_transforms_buf: Vec::new(),
+            ragdoll: None,
             material_visible: Vec::new(),
             user_material_visible: Vec::new(),
             bone_indices: Vec::new(),
@@ -2243,6 +2247,10 @@ impl MmdModel {
         self.animation_layer_manager.update(elapsed);
         self.begin_animation();
         self.bone_manager.reset_all_ik_enabled();
+        // 布娃娃接管时禁用 IK（防腿/手 IK 覆盖物理姿势）
+        if self.ragdoll.is_some() {
+            self.bone_manager.set_all_ik_enabled(false);
+        }
 
         self.animation_layer_manager
             .evaluate_normalized(&mut self.bone_manager, &mut self.morph_manager);
@@ -2267,9 +2275,15 @@ impl MmdModel {
             self.sync_gpu_uv_morph_weights_from_cache();
         }
 
+        // 死亡布娃娃步进 + 回写（在骨骼全局更新之前：
+        // 接管骨被 update_transforms 跳过，其从属骨由 pass 1 从新姿势传播）
+        if let Some(ragdoll) = self.ragdoll.as_mut() {
+            ragdoll.step(&mut self.bone_manager, elapsed);
+        }
+
         self.update_node_animation(false);
 
-        if self.vr_enabled {
+        if self.vr_enabled && self.ragdoll.is_none() {
             let strength = self.vr_ik_strength;
             if let Some(frame) = self.vr_tracking_frame {
                 self.vr_debug_state = self.vr_ik_solver.solve_tracking_frame(
@@ -2304,7 +2318,10 @@ impl MmdModel {
             runtime_state.refresh_output(model);
         });
 
-        self.apply_transition_blend(elapsed);
+        // 布娃娃激活时跳过矩阵过渡混合（它会向旧快照插值，与物理姿势冲突）
+        if self.ragdoll.is_none() {
+            self.apply_transition_blend(elapsed);
+        }
 
         if cpu_skinning {
             self.update();
@@ -2380,6 +2397,85 @@ impl MmdModel {
     /// 获取物理系统是否已初始化
     pub fn has_physics(&self) -> bool {
         self.physics.is_some()
+    }
+
+    // ======== 死亡布娃娃 ========
+
+    /// 启用死亡布娃娃（从当前骨骼姿势构建刚体）
+    ///
+    /// 调用时机：骨骼全局矩阵为死亡姿势时（Java 在实体死亡的下一帧 Update 之前）。
+    /// v1 仅支持 PMX 模型（VRM 走独立 vrm_runtime 管线）。
+    pub fn enable_ragdoll(&mut self, params: crate::ragdoll::RagdollParams) -> bool {
+        if self.is_vrm {
+            log::debug!("[Ragdoll] VRM 模型暂不支持布娃娃");
+            return false;
+        }
+        if self.ragdoll.is_some() {
+            return true;
+        }
+        match crate::ragdoll::MmdRagdoll::new(self, params) {
+            Some(ragdoll) => {
+                self.bone_manager
+                    .set_ragdoll_bone_indices(ragdoll.ragdoll_bone_indices());
+                self.ragdoll = Some(ragdoll);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// 禁用并拆除布娃娃（骨骼恢复动画驱动）
+    pub fn disable_ragdoll(&mut self) {
+        if self.ragdoll.take().is_some() {
+            self.bone_manager.clear_ragdoll_bone_indices();
+        }
+    }
+
+    /// 布娃娃是否激活
+    pub fn is_ragdoll_active(&self) -> bool {
+        self.ragdoll.is_some()
+    }
+
+    /// 设置布娃娃地面高度（模型局部单位）
+    pub fn ragdoll_set_ground_y(&mut self, ground_local_y: f32) {
+        if let Some(ref mut ragdoll) = self.ragdoll {
+            ragdoll.set_ground_y(ground_local_y);
+        }
+    }
+
+    /// 施加速度增量（世界 m/s + yaw，内部换算到模型局部 Bullet 空间）
+    pub fn ragdoll_apply_world_velocity_delta(
+        &mut self,
+        vx: f32,
+        vy: f32,
+        vz: f32,
+        yaw: f32,
+        world_to_model_scale: f32,
+        upper_body_only: bool,
+    ) {
+        let Some(ragdoll) = self.ragdoll.as_mut() else {
+            return;
+        };
+        // 世界 → 模型局部（R^T·v，R 与 set_model_position_and_yaw 的旋转一致）
+        let cos_y = yaw.cos();
+        let sin_y = yaw.sin();
+        let lx = cos_y * vx + sin_y * vz;
+        let lz = -sin_y * vx + cos_y * vz;
+        let scale = if world_to_model_scale.abs() > 1e-6 {
+            world_to_model_scale
+        } else {
+            0.09
+        };
+        let delta = Vec3::new(lx / scale, vy / scale, -lz / scale);
+        ragdoll.apply_velocity_delta(delta, upper_body_only);
+    }
+
+    /// 布娃娃调试信息（JSON）
+    pub fn ragdoll_debug_info(&self) -> String {
+        match &self.ragdoll {
+            Some(r) => r.debug_info(),
+            None => String::from("{\"active\": false}"),
+        }
     }
 
     /// 更新物理模拟（Bullet3）

@@ -30,6 +30,9 @@ pub struct BoneSet {
     /// 物理驱动的骨骼索引集合
     physics_bone_indices: HashSet<usize>,
 
+    /// 布娃娃接管的骨骼索引集合（持久，区别于每帧清空的 physics_bone_indices）
+    ragdoll_bone_indices: HashSet<usize>,
+
     /// 子骨骼缓存（parent_index -> children_indices）
     children_cache: Vec<Vec<usize>>,
 
@@ -50,6 +53,7 @@ impl BoneSet {
             ik_solvers: Vec::new(),
             skinning_matrices: Vec::new(),
             physics_bone_indices: HashSet::new(),
+            ragdoll_bone_indices: HashSet::new(),
             children_cache: Vec::new(),
             needs_hierarchy_update: true,
             is_vrm: false,
@@ -274,6 +278,33 @@ impl BoneSet {
     }
 
     // ========================================
+    // 布娃娃骨骼管理（持久接管集合）
+    // ========================================
+
+    /// 设置布娃娃接管的骨骼索引集合（启用布娃娃时调用）
+    pub fn set_ragdoll_bone_indices(&mut self, indices: &HashSet<usize>) {
+        self.ragdoll_bone_indices.clone_from(indices);
+    }
+
+    /// 清除布娃娃骨骼集合（禁用布娃娃时调用）
+    pub fn clear_ragdoll_bone_indices(&mut self) {
+        self.ragdoll_bone_indices.clear();
+    }
+
+    /// 检查是否为布娃娃接管骨骼
+    #[inline]
+    pub fn is_ragdoll_bone(&self, index: usize) -> bool {
+        self.ragdoll_bone_indices.contains(&index)
+    }
+
+    /// 启用/禁用所有 IK 求解器（布娃娃接管时禁用，防 IK 覆盖物理姿势）
+    pub fn set_all_ik_enabled(&mut self, enabled: bool) {
+        for solver in &mut self.ik_solvers {
+            solver.enabled = enabled;
+        }
+    }
+
+    // ========================================
     // 变换更新（核心功能）
     // ========================================
 
@@ -309,12 +340,13 @@ impl BoneSet {
     ///
     /// 参考 nphysics Multibody::update_kinematics
     pub fn update_transforms(&mut self, after_physics: bool) {
-        // 1. 更新本地变换（跳过物理骨骼）
+        // 1. 更新本地变换（跳过物理骨骼和布娃娃接管骨骼）
         for &idx in &self.sorted_indices.clone() {
             if self.links[idx].deform_after_physics() != after_physics {
                 continue;
             }
-            if self.physics_bone_indices.contains(&idx) {
+            if self.physics_bone_indices.contains(&idx) || self.ragdoll_bone_indices.contains(&idx)
+            {
                 continue;
             }
             self.links[idx].compute_local_transform();
@@ -365,8 +397,9 @@ impl BoneSet {
     ///
     /// 类似 nphysics Multibody::update_kinematics
     fn update_global_transform_recursive(&mut self, index: usize) {
-        // 跳过物理骨骼（它们的变换由物理系统设置）
-        if self.physics_bone_indices.contains(&index) {
+        // 跳过物理/布娃娃骨骼（它们的变换由外部设置），但仍递归更新子骨骼
+        if self.physics_bone_indices.contains(&index) || self.ragdoll_bone_indices.contains(&index)
+        {
             // 仍需递归更新子骨骼
             let children = self.children_cache[index].clone();
             for child_idx in children {
@@ -615,9 +648,11 @@ impl BoneSet {
     }
 
     /// 批量更新物理骨骼后，更新非物理骨骼
+    ///
+    /// 布娃娃接管的骨骼始终跳过（其全局矩阵由布娃娃每帧写入，不能被覆盖）
     pub fn update_non_physics_children(&mut self, physics_bone_indices: &HashSet<usize>) {
         for &idx in &self.sorted_indices.clone() {
-            if physics_bone_indices.contains(&idx) {
+            if physics_bone_indices.contains(&idx) || self.ragdoll_bone_indices.contains(&idx) {
                 continue;
             }
 
