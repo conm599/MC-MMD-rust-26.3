@@ -123,6 +123,14 @@ public final class RagdollManager {
         boolean renderReady;
         boolean ragdollReady;
         boolean deathAnimStarted;
+        /** 尸体模型就绪（首次渲染前）的时刻；用于等动画真正应用到骨骼。 */
+        long readyMs;
+        /**
+         * 尸体模型实际渲染过的帧数。引擎在 render() 内部才执行动画更新，
+         * 就绪后至少渲染过几帧，骨骼才会离开绑定姿势（T-pose）——
+         * 布娃娃必须等到此时再从当前姿势构建，否则刚体按 T-pose 摊开。
+         */
+        int renderedFrames;
 
         Corpse(long id, UUID subjectId, LivingEntity sourceEntity, ModelRequestKey corpseKey,
                long deathTimeMs, float[] pendingParams,
@@ -292,8 +300,13 @@ public final class RagdollManager {
                 }
             }
 
-            // 死亡动画窗口结束 → 从当前姿势启物理
-            if (corpse.renderReady && !corpse.ragdollReady) {
+            // 死亡动画窗口结束 → 从当前姿势启物理。
+            // 前置：模型至少实际渲染过 3 帧（动画已应用到骨骼，离开 T-pose）；
+            // 兜底：2 秒后无条件启用，防止尸体在视野外永不启物理。
+            if (corpse.renderReady && !corpse.ragdollReady
+                    && corpse.readyMs > 0L
+                    && (corpse.renderedFrames >= 3
+                        || now - corpse.readyMs >= 2000L)) {
                 long deathAnimMs = (long) (ConfigManager.getRagdollDeathAnimSeconds() * 1000.0f);
                 if (now - corpse.deathTimeMs >= deathAnimMs) {
                     if (!enableRagdollOn(corpse)) {
@@ -347,6 +360,7 @@ public final class RagdollManager {
                 // 首次就绪：接管渲染，播死亡动画
                 corpse.model = refreshed;
                 corpse.renderReady = true;
+                corpse.readyMs = System.currentTimeMillis();
                 startCorpseDeathAnim(corpse);
                 logger.info("[Ragdoll] 尸体模型就绪: id={} ({} ms)",
                         corpse.id, System.currentTimeMillis() - corpse.deathTimeMs);
@@ -390,10 +404,8 @@ public final class RagdollManager {
             return false;
         }
         float[] params = corpse.pendingParams.clone();
-        // 纯瘫倒：不从死亡初速度继承冲量（与 lab 手感一致）
-        params[1] = 0.0f;
-        params[2] = 0.0f;
-        params[3] = 0.0f;
+        // 继承死亡瞬间的动量（击退 / 下落速度）：引擎按 yaw 旋转换算到模型局部空间。
+        // 不清零——清零会让尸体原地直挺挺瘫倒，没有惯性。
         boolean ok = ragdollPort.enterRagdoll(instance.getModelHandle(), params);
         if (!ok) {
             logger.info("[Ragdoll] 布娃娃启动失败（冷却 {} ms）: id={}", FAILED_RETRY_COOLDOWN_MS, corpse.id);
@@ -653,6 +665,8 @@ public final class RagdollManager {
                         packedLight,
                         RenderScene.WORLD
                 );
+                // 引擎在 render() 内部执行动画/物理更新：记一次"骨骼姿势已应用"
+                corpse.renderedFrames++;
             } finally {
                 minecraft.gameRenderer.lightTexture().turnOffLightLayer();
             }
