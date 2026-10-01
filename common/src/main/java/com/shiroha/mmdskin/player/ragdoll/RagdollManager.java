@@ -385,6 +385,8 @@ public final class RagdollManager {
         switch (keepMode) {
             case "SECONDS" -> {
                 if (now - corpse.deathTimeMs > ConfigManager.getCorpseKeepSeconds() * 1000L) {
+                    logger.info("[Ragdoll] 保留期到点逐出: id={} ({} s)", corpse.id,
+                            ConfigManager.getCorpseKeepSeconds());
                     return true;
                 }
             }
@@ -400,6 +402,7 @@ public final class RagdollManager {
                     double dy = corpse.y - minecraft.player.getY();
                     double dz = corpse.z - minecraft.player.getZ();
                     if (dx * dx + dy * dy + dz * dz > radius * radius) {
+                        logger.info("[Ragdoll] 超出附近保留半径({} 格)逐出: id={}", (int) radius, corpse.id);
                         return true;
                     }
                 }
@@ -413,6 +416,19 @@ public final class RagdollManager {
         try {
             ManagedModel refreshed = ClientRenderRuntime.get().modelRepository().acquire(corpse.corpseKey);
             if (refreshed == null || refreshed.modelInstance() == null) {
+                // 外部销毁恢复：设置保存(reloadAll)/模型池清理会销毁所有实例，
+                // 尸体手里可能还攥着已销毁的旧实例——干净复位，等新实例加载后完整重来。
+                if (corpse.model != null) {
+                    ModelInstance held = corpse.model.modelInstance();
+                    if (held == null || held.getModelHandle() == 0L) {
+                        logger.info("[Ragdoll] 尸体模型实例被外部销毁（设置保存/缓存清理），等待重载: id={}", corpse.id);
+                        corpse.model = null;
+                        corpse.renderReady = false;
+                        corpse.ragdollReady = false;
+                        corpse.deathAnimStarted = false;
+                        corpse.renderedFrames = 0;
+                    }
+                }
                 return;
             }
             if (corpse.model == null) {
