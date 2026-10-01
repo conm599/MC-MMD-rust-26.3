@@ -210,12 +210,23 @@ public final class RagdollManager {
         double groundWorldY = sampleGroundY(entity.level(), entity.getX(), entity.getY(), entity.getZ(), entity.getY());
         float[] params = buildRagdollParams(entity, groundWorldY);
 
-        // 尸体专用缓存键：与活人模型彻底分离，且每次死亡独立（同玩家两次死亡 = 两个缓存键）
+        // 同一实体再次死亡：顶替旧尸体记录，但复用其已加载的模型实例
+        // （缓存键按实体唯一，见 corpseKey 注释）——旧布娃娃拆除、新死亡立即接管，
+        // 避免"每次死亡全量重载模型"造成的第二具尸体迟迟不出现。
+        Corpse previous = findCorpseBySubjectId(subjectId);
+        if (previous != null) {
+            releaseCorpse(previous, false);
+        }
+
+        // 尸体专用缓存键：按实体唯一（不带死亡计数）。
+        // 不用 uuid|corpse|N 的按死亡键——那会让每次死亡都全量重载模型
+        // （单线程加载器串行解析），连续死亡时第二具要等数秒，看起来像"没被创建"；
+        // 且反复的 GL 构造是随机错贴图的高发窗口。
         ModelRequestKey originKey = entityModel.requestKey();
         long corpseId = nextCorpseId++;
         ModelRequestKey corpseKey = new ModelRequestKey(
                 originKey.subjectKind(),
-                subjectId + "|corpse|" + corpseId,
+                subjectId + "|corpse",
                 originKey.modelName());
 
         Corpse corpse = new Corpse(
@@ -410,6 +421,8 @@ public final class RagdollManager {
                 corpse.renderReady = true;
                 corpse.readyMs = System.currentTimeMillis();
                 startCorpseDeathAnim(corpse);
+                // 模型工厂构造期间有裸 glBindTexture（引擎缺陷），收尾修复一次
+                repairUpstreamGlState(Minecraft.getInstance());
                 logger.info("[Ragdoll] 尸体模型就绪: id={} ({} ms)",
                         corpse.id, System.currentTimeMillis() - corpse.deathTimeMs);
             } else if (corpse.model != refreshed) {
@@ -420,6 +433,8 @@ public final class RagdollManager {
                     corpse.deathAnimStarted = false;
                 }
                 corpse.model = refreshed;
+                corpse.renderedFrames = 0;
+                corpse.readyMs = System.currentTimeMillis();
                 startCorpseDeathAnim(corpse);
                 logger.info("[Ragdoll] 尸体模型被重载，重启布娃娃: id={}", corpse.id);
             }
@@ -538,6 +553,16 @@ public final class RagdollManager {
     private Corpse findCorpseForEntity(LivingEntity entity) {
         Long id = corpseIdByEntity.get(entity);
         return id != null ? corpses.get(id) : null;
+    }
+
+    /** 按 subjectId 查找（同一实体再次死亡时顶替旧记录用）。 */
+    private Corpse findCorpseBySubjectId(UUID subjectId) {
+        for (Corpse corpse : corpses.values()) {
+            if (corpse.subjectId.equals(subjectId)) {
+                return corpse;
+            }
+        }
+        return null;
     }
 
     public int corpseCount() {
@@ -812,6 +837,16 @@ public final class RagdollManager {
     }
 
     private void releaseCorpse(Corpse corpse) {
+        releaseCorpse(corpse, true);
+    }
+
+    /**
+     * 释放尸体记录。
+     *
+     * @param disposeModel true = 立即销毁尸体模型实例（正常逐出：键不会再被获取）；
+     *                     false = 只解绑（同实体再次死亡顶替：缓存键相同，新尸体马上要复用这个实例）
+     */
+    private void releaseCorpse(Corpse corpse, boolean disposeModel) {
         try {
             if (corpse.model != null && corpse.model.modelInstance() != null
                     && corpse.model.modelInstance().getModelHandle() != 0L) {
@@ -824,13 +859,15 @@ public final class RagdollManager {
         if (indexedId != null && indexedId == corpse.id) {
             corpseIdByEntity.remove(corpse.sourceEntity);
         }
-        // 立即彻底销毁尸体模型实例（GL 缓冲 + 贴图引用 + native 模型）。
-        // 不再等模型缓存"60s 空闲 + 60s 待删"慢慢回收：尸体键每次死亡唯一、永不复用，
-        // 滞留只会白占 VRAM 并放大贴图引用计数churn。同键不会被再次获取，销毁是安全的。
-        try {
-            ClientRenderRuntime.get().modelRepository().reloadSubject(corpse.corpseKey);
-        } catch (Exception e) {
-            logger.warn("[Ragdoll] 尸体模型销毁异常: id={}", corpse.id, e);
+        if (disposeModel) {
+            // 立即彻底销毁尸体模型实例（GL 缓冲 + 贴图引用 + native 模型）。
+            // 不再等模型缓存"60s 空闲 + 60s 待删"慢慢回收：尸体键不会再被获取，
+            // 滞留只会白占 VRAM。正常逐出走这里；同实体顶替不走（实例要复用）。
+            try {
+                ClientRenderRuntime.get().modelRepository().reloadSubject(corpse.corpseKey);
+            } catch (Exception e) {
+                logger.warn("[Ragdoll] 尸体模型销毁异常: id={}", corpse.id, e);
+            }
         }
         corpse.model = null;
     }
