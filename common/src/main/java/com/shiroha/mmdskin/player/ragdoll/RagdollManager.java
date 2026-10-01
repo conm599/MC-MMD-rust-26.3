@@ -210,23 +210,14 @@ public final class RagdollManager {
         double groundWorldY = sampleGroundY(entity.level(), entity.getX(), entity.getY(), entity.getZ(), entity.getY());
         float[] params = buildRagdollParams(entity, groundWorldY);
 
-        // 同一实体再次死亡：顶替旧尸体记录，但复用其已加载的模型实例
-        // （缓存键按实体唯一，见 corpseKey 注释）——旧布娃娃拆除、新死亡立即接管，
-        // 避免"每次死亡全量重载模型"造成的第二具尸体迟迟不出现。
-        Corpse previous = findCorpseBySubjectId(subjectId);
-        if (previous != null) {
-            releaseCorpse(previous, false);
-        }
-
-        // 尸体专用缓存键：按实体唯一（不带死亡计数）。
-        // 不用 uuid|corpse|N 的按死亡键——那会让每次死亡都全量重载模型
-        // （单线程加载器串行解析），连续死亡时第二具要等数秒，看起来像"没被创建"；
-        // 且反复的 GL 构造是随机错贴图的高发窗口。
+        // 尸体专用缓存键：每次死亡独立（带 corpseId）——每具尸体的实例、动画、物理完全独立，
+        // 同玩家的多具尸体可以共存且互不联动。模型实测热加载 ~100ms（日志可证），
+        // 创建失败的真凶是保留策略逐出，不是加载耗时。
         ModelRequestKey originKey = entityModel.requestKey();
         long corpseId = nextCorpseId++;
         ModelRequestKey corpseKey = new ModelRequestKey(
                 originKey.subjectKind(),
-                subjectId + "|corpse",
+                subjectId + "|corpse|" + corpseId,
                 originKey.modelName());
 
         Corpse corpse = new Corpse(
@@ -569,16 +560,6 @@ public final class RagdollManager {
     private Corpse findCorpseForEntity(LivingEntity entity) {
         Long id = corpseIdByEntity.get(entity);
         return id != null ? corpses.get(id) : null;
-    }
-
-    /** 按 subjectId 查找（同一实体再次死亡时顶替旧记录用）。 */
-    private Corpse findCorpseBySubjectId(UUID subjectId) {
-        for (Corpse corpse : corpses.values()) {
-            if (corpse.subjectId.equals(subjectId)) {
-                return corpse;
-            }
-        }
-        return null;
     }
 
     public int corpseCount() {
