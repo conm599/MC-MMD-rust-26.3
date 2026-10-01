@@ -784,7 +784,14 @@ public final class RagdollManager {
         if (indexedId != null && indexedId == corpse.id) {
             corpseIdByEntity.remove(corpse.sourceEntity);
         }
-        // 模型实例留在仓储里走正常缓存淘汰（此处只解绑）
+        // 立即彻底销毁尸体模型实例（GL 缓冲 + 贴图引用 + native 模型）。
+        // 不再等模型缓存"60s 空闲 + 60s 待删"慢慢回收：尸体键每次死亡唯一、永不复用，
+        // 滞留只会白占 VRAM 并放大贴图引用计数churn。同键不会被再次获取，销毁是安全的。
+        try {
+            ClientRenderRuntime.get().modelRepository().reloadSubject(corpse.corpseKey);
+        } catch (Exception e) {
+            logger.warn("[Ragdoll] 尸体模型销毁异常: id={}", corpse.id, e);
+        }
         corpse.model = null;
     }
 }

@@ -124,6 +124,66 @@ public class TextureRepository {
         }
     }
 
+    /**
+     * 原子地"获取并加引用"。
+     *
+     * <p>旧的 GetTexture + addRef 两步之间，槽位可能被其他线程 release 到 0 进入待删
+     * （pending），此时 addRef 会因 pending 被静默跳过——材质握着一个即将删除的 GL id，
+     * 删除后 id 被 GL 复用就渲染成任意颜色的错误贴图（尸体贴图随机消失的根因）。
+     * 本方法在同一个槽位锁内完成"唤醒 pending + 返回 + 加引用"，不存在窗口。
+     */
+    public static Texture getAndRef(String filename) {
+        Map<String, TextureSlot> localSlots = textureSlots;
+        if (localSlots == null) return null;
+
+        while (true) {
+            TextureSlot slot = localSlots.computeIfAbsent(filename, ignored -> new TextureSlot());
+            boolean removeRetired = false;
+            boolean retry = false;
+            Texture result = null;
+            synchronized (slot) {
+                if (slot.retired) {
+                    removeRetired = true;
+                    retry = true;
+                } else if (slot.texture != null) {
+                    if (slot.pending) {
+                        budgetManager.activatePendingTexture(slot, slot.texture, activeTextureCount);
+                    }
+                    slot.texture.refCount.incrementAndGet();
+                    result = slot.texture;
+                } else {
+                    PredecodedTexture predecoded = slot.predecoded;
+                    if (predecoded != null) {
+                        slot.predecoded = null;
+                        Texture uploaded = TextureGpuLoader.uploadPredecoded(predecoded);
+                        slot.texture = uploaded;
+                        slot.retired = false;
+                        if (uploaded != null) {
+                            uploaded.refCount.incrementAndGet();
+                            activeTextureCount.incrementAndGet();
+                            result = uploaded;
+                        }
+                    } else {
+                        Texture loaded = TextureGpuLoader.loadToGpu(filename, texturePort);
+                        if (loaded != null) {
+                            slot.texture = loaded;
+                            slot.retired = false;
+                            loaded.refCount.incrementAndGet();
+                            activeTextureCount.incrementAndGet();
+                            result = loaded;
+                        } else {
+                            removeRetired = markRetiredIfEmpty(slot);
+                        }
+                    }
+                }
+            }
+            if (result != null) return result;
+            if (!removeRetired) return null;
+            localSlots.remove(filename, slot);
+            if (!retry) return null;
+        }
+    }
+
     public static void addRef(String filename) {
         Map<String, TextureSlot> localSlots = textureSlots;
         if (localSlots == null) return;

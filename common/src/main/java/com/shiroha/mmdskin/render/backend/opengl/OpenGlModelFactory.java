@@ -115,11 +115,12 @@ final class OpenGlModelFactory {
                 String texFilename = nativeBackend.getMaterialTexturePath(model, i);
                 mats[i].texturePath = texFilename != null ? texFilename : "";
                 if (texFilename != null && !texFilename.isEmpty()) {
-                    TextureRepository.Texture mgrTex = TextureRepository.GetTexture(texFilename);
+                    // 原子获取+加引用：GetTexture/addRef 分步写法在并发释放时会丢失引用，
+                    // 导致材质持有稍后被删的 GL id（贴图随机消失）
+                    TextureRepository.Texture mgrTex = TextureRepository.getAndRef(texFilename);
                     if (mgrTex != null) {
                         mats[i].tex = mgrTex.tex;
                         mats[i].hasAlpha = mgrTex.hasAlpha;
-                        TextureRepository.addRef(texFilename);
                         texKeys.add(texFilename);
                     }
                 }
@@ -127,11 +128,10 @@ final class OpenGlModelFactory {
 
             lightMapMaterial = new ModelMaterial();
             String lightMapPath = modelDir + "/lightMap.png";
-            TextureRepository.Texture mgrTex = TextureRepository.GetTexture(lightMapPath);
+            TextureRepository.Texture mgrTex = TextureRepository.getAndRef(lightMapPath);
             if (mgrTex != null) {
                 lightMapMaterial.tex = mgrTex.tex;
                 lightMapMaterial.hasAlpha = mgrTex.hasAlpha;
-                TextureRepository.addRef(lightMapPath);
                 texKeys.add(lightMapPath);
             } else {
                 lightMapMaterial.tex = GL46C.glGenTextures();

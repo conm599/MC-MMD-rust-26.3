@@ -293,11 +293,11 @@ public class GpuSkinningModelInstance extends BaseModelInstance {
                 String texFilename = nativeBackend.getMaterialTexturePath(model, i);
                 mats[i].texturePath = texFilename != null ? texFilename : "";
                 if (texFilename != null && !texFilename.isEmpty()) {
-                    TextureRepository.Texture managerTexture = TextureRepository.GetTexture(texFilename);
+                    // 原子获取+加引用（GetTexture/addRef 分步有丢引用竞态 → 贴图随机消失）
+                    TextureRepository.Texture managerTexture = TextureRepository.getAndRef(texFilename);
                     if (managerTexture != null) {
                         mats[i].tex = managerTexture.tex;
                         mats[i].hasAlpha = managerTexture.hasAlpha;
-                        TextureRepository.addRef(texFilename);
                         textureKeys.add(texFilename);
                     }
                 }
@@ -305,11 +305,10 @@ public class GpuSkinningModelInstance extends BaseModelInstance {
 
             lightMapMaterial = new ModelMaterial();
             String lightMapPath = modelDir + "/lightMap.png";
-            TextureRepository.Texture lightMapTexture = TextureRepository.GetTexture(lightMapPath);
+            TextureRepository.Texture lightMapTexture = TextureRepository.getAndRef(lightMapPath);
             if (lightMapTexture != null) {
                 lightMapMaterial.tex = lightMapTexture.tex;
                 lightMapMaterial.hasAlpha = lightMapTexture.hasAlpha;
-                TextureRepository.addRef(lightMapPath);
                 textureKeys.add(lightMapPath);
             } else {
                 lightMapMaterial.tex = GL46C.glGenTextures();
