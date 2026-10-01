@@ -1,0 +1,244 @@
+================================================================================
+死亡布娃娃物理层 —— 关键数值存档
+================================================================================
+来源：rust_engine/src/ragdoll/{mod.rs, spec.rs}（移植自 ragdoll-lab.html，
+参数原始记录见 D:\mcmmd\ragdoll-params.md）。本文件是全部手感调参数值的
+只读快照：将来若物理层需要重写，直接照抄本表数值，手感几乎不变。
+提取自已在游戏中验证过的 v1.1.0 物理层（物理行为已由用户确认正确）。
+
+--------------------------------------------------------------------------------
+1. 单位与全局约定
+--------------------------------------------------------------------------------
+UNIT_TO_M（模型单位→米）          = 0.09        （Java 侧 MODEL_SCALE 同值 0.09）
+空间约定                          骨骼右手 / 物理左手，边界用 inv_z 矩阵转换
+独立 Bullet3 世界                 每具尸体一个，与 MMD 物理（头发衣物）互不干扰
+帧参数                            fps = 60（fixed_dt = 1/60），max_substeps = 5
+                                  dt 进 step 前 clamp [0.001, 0.1]
+
+--------------------------------------------------------------------------------
+2. RagdollParams 默认值（JNI RagdollEnable 缺省 = lab 手感）
+--------------------------------------------------------------------------------
+thickness        碰撞体厚度缩放   = 1.0        （下限 clamp 0.1）
+friction         摩擦系数         = 0.55
+restitution      恢复系数         = 0.06       （lab 0.05~0.08 取中）
+linear_damping   线性阻尼         = 0.06
+angular_damping  角阻尼           = 0.35
+gravity_y        重力 Y(模型单位) = -9.81 / 0.09 ≈ -109.0
+joint_strength   关节限位强度     = 1.35       （越大越硬；ERP/CFM 由它推导）
+total_mass_kg    总质量           = 50.0       （单段质量 = MASS_FRAC × 总质量）
+arm_limit        手臂关节限位乘数 = 0.8
+
+--------------------------------------------------------------------------------
+3. 碰撞组（外科手术式过滤，防自身接触力顶开关节）
+--------------------------------------------------------------------------------
+GROUP_GROUND = 1
+GROUP_BODY   = 4
+GROUP_LEG    = 4
+MASK_GROUND  = 0xFFFF
+MASK_BODY    = GROUP_GROUND            （身体段只与地面碰撞）
+MASK_LEG     = GROUP_GROUND | GROUP_LEG（腿段与地面 + 其他腿碰撞）
+
+--------------------------------------------------------------------------------
+4. 地面（运动学薄盒，可整体平移）
+--------------------------------------------------------------------------------
+half extents  = 160.0 × 0.25 × 160.0（模型单位）
+friction      = 0.75
+restitution   = 0.0
+mass          = 0（kinematic），disable_deactivation = true
+初始位置 y    = ground_local_y - 0.25
+移动地面时    平移后必须 world.refresh_rigid_body(ground)
+              （updateSingleAabb + 重算 broadphase overlapping pairs +
+               唤醒所有动态刚体——否则地面下移后尸体会被旧接触对钉住）
+
+--------------------------------------------------------------------------------
+5. 身高标定
+--------------------------------------------------------------------------------
+bbox_height   = 模型顶点 Y 包围盒高度（模型单位；无顶点时 fallback 20.0）
+height_m      = bbox_height × 0.09
+radius_scale  = max(height_m / 1.7, 0.25)   （lab 参数按 1.7m 身高标定）
+刚体总段数不足 4 段 → 放弃布娃娃（返回 None）
+
+--------------------------------------------------------------------------------
+6. Dempster 质量分布（占总质量比例，16 段顺序）
+--------------------------------------------------------------------------------
+段顺序: pelvis, chest, upperChest, head,
+        lUpperArm, lLowerArm, lHand, rUpperArm, rLowerArm, rHand,
+        lUpperLeg, lLowerLeg, lFoot, rUpperLeg, rLowerLeg, rFoot
+
+MASS_FRAC = [
+    0.142, 0.200, 0.160, 0.081,
+    0.028, 0.016, 0.006,  0.028, 0.016, 0.006,
+    0.100, 0.0465, 0.0145,  0.100, 0.0465, 0.0145,
+]
+
+--------------------------------------------------------------------------------
+7. 解剖学默认半径（米，无实测值时 fallback；实测优先）
+--------------------------------------------------------------------------------
+RADIUS_M = [
+    0.105,  // pelvis
+    0.115,  // chest
+    0.098,  // upperChest
+    0.088,  // head
+    0.045, 0.038, 0.032,   // 左臂 上臂/前臂/手
+    0.045, 0.038, 0.032,   // 右臂
+    0.078, 0.055, 0.042,   // 左腿 大腿/小腿/脚
+    0.078, 0.055, 0.042,   // 右腿
+]
+脚部半径额外 ×0.62
+换算到模型单位: r = max(r_m × radius_scale / 0.09, 0.004)
+
+--------------------------------------------------------------------------------
+8. 16 段刚体定义（a/b=骨槽位, parent=父段, joint, lead_m=末端延伸米, is_leg）
+--------------------------------------------------------------------------------
+ 0 pelvis      a=hips            b=spine       parent=None  joint=None     lead=0.16
+ 1 chest       a=spine           b=chest       parent=0     joint=Spherical lead=0
+ 2 upperChest  a=chest           b=neck        parent=1     joint=Spherical lead=0
+ 3 head        a=head            b=None        parent=2     joint=Spherical lead=0.20
+ 4 lUpperArm   a=lUpperArm       b=lLowerArm   parent=2     joint=Spherical lead=0
+ 5 lLowerArm   a=lLowerArm       b=lHand       parent=4     joint=Revolute  lead=0
+ 6 lHand       a=lHand           b=None        parent=5     joint=Spherical lead=0.10
+ 7 rUpperArm   a=rUpperArm       b=rLowerArm   parent=2     joint=Spherical lead=0
+ 8 rLowerArm   a=rLowerArm       b=rHand       parent=7     joint=Revolute  lead=0
+ 9 rHand       a=rHand           b=None        parent=8     joint=Spherical lead=0.10
+10 lUpperLeg   a=lUpperLeg       b=lLowerLeg   parent=0     joint=Spherical lead=0  is_leg
+11 lLowerLeg   a=lLowerLeg       b=lFoot       parent=10    joint=Revolute  lead=0  is_leg
+12 lFoot       a=lFoot           b=lToes       parent=11    joint=Spherical lead=0  is_leg
+13 rUpperLeg   a=rUpperLeg       b=rLowerLeg   parent=0     joint=Spherical lead=0  is_leg
+14 rLowerLeg   a=rLowerLeg       b=rFoot       parent=13    joint=Revolute  lead=0  is_leg
+15 rFoot       a=rFoot           b=rToes       parent=14    joint=Spherical lead=0  is_leg
+UPPER_BODY_MAX_PART = 3（head；apply_velocity_delta upper_body_only 用）
+
+骨槽位候选日文名（自动展开 PMD 别名 + "+D" 变体）：
+ hips        センター / 腰 / 下半身
+ spine       上半身
+ chest       上半身2 / 上半身3        （缺失时回落到 neck 首）
+ neck        首
+ head        頭
+ lUpperArm   左腕        rUpperArm   右腕
+ lLowerArm   左ひじ/左肘  rLowerArm   右ひじ/右肘
+ lHand       左手首      rHand       右手首
+ lUpperLeg   左足        rUpperLeg   右足
+ lLowerLeg   左ひざ/左膝  rLowerLeg   右ひざ/右膝
+ lFoot       左足首      rFoot       右足首
+ lToes       左つま先/左足先EX/左足先   rToes 同理
+候选胜者 = 主导顶点数（BDEF 权重 ≥0.5 侧）最多者；
+位置守卫 = 非首选候选与首选位置偏离 > 身高×6% 淘汰。
+
+--------------------------------------------------------------------------------
+9. 球关节限位（度）：(swing 侧摆, fwd 前摆, back 后摆, twist 扭转)
+--------------------------------------------------------------------------------
+SPH_LIMITS_DEG（下标同第 8 节段序）:
+ 0 pelvis     (0, 0, 0, 0)          （无关节）
+ 1 chest      (32, 32, 25, 32)
+ 2 upperChest (26, 26, 22, 26)
+ 3 head       (42, 42, 38, 52)
+ 4 lUpperArm  (78, 78, 46, 38)      ← 乘 arm_limit(0.8)
+ 5 lLowerArm  铰链
+ 6 lHand      (58, 58, 58, 20)      ← 乘 arm_limit(0.8)
+ 7 rUpperArm  (78, 78, 46, 38)      ← 乘 arm_limit(0.8)
+ 8 rLowerArm  铰链
+ 9 rHand      (58, 58, 58, 20)      ← 乘 arm_limit(0.8)
+10 lUpperLeg  (105, 105, 28, 40)
+11 lLowerLeg  铰链
+12 lFoot      (22, 18, 20, 9)
+13 rUpperLeg  (105, 105, 28, 40)
+14 rLowerLeg  铰链
+15 rFoot      (22, 18, 20, 9)
+球关节角度限位换算：
+ lower = (-fwd×s, -swing×s, -twist×s) × DEG
+ upper = ( back×s,  swing×s,  twist×s) × DEG     （s = arm_limit 或 1）
+
+--------------------------------------------------------------------------------
+10. 铰链限位（度）：(负向超出, 正向最大)
+--------------------------------------------------------------------------------
+HINGE_LIMITS_DEG:
+ 5 lLowerArm  (-2.0, 146.0)   肘，屈曲向前（帧 Y 取 -front_perp）
+14 rLowerArm  (-2.0, 146.0)
+11 lLowerLeg  (-4.0, 150.0)   膝，屈曲向后（帧 Y 取 +front_perp）
+15 rLowerLeg  (-4.0, 150.0)
+铰链角度限位换算：
+ X 轴 = (lo, hi)×DEG；Y/Z 轴 = ±10°（副轴自由度）
+
+--------------------------------------------------------------------------------
+11. 关节柔软度（ERP/CFM，由 joint_strength 推导）
+--------------------------------------------------------------------------------
+erp = clamp(0.25 × joint_strength, 0.1, 0.6)      （1.35 → ≈0.34）
+cfm = clamp(0.02 / max(joint_strength, 0.1), 0.002, 0.05)
+全部 6 轴同设（BT_CONSTRAINT_STOP_ERP / BT_CONSTRAINT_STOP_CFM）
+线性限位全锁 ±0.001（锚点刚性）
+弹簧全关（enable_spring(i,false) ×6）+ set_equilibrium_point()
+（柔软感来自限位 ERP/CFM + 阻尼，弹簧会把姿势拽回绑定态——不要开）
+
+--------------------------------------------------------------------------------
+12. 碰撞体几何
+--------------------------------------------------------------------------------
+胶囊（常规段）:
+ radius = r（第 7 节），capsule half_height = max(seg_len/2 - r, 0.004)
+ capsule 全高 = max(capsule_half_height×2, 0.01)
+ 刚体中心 = 骨骼原点 + dir × (seg_len/2)；旋转 = from_rotation_arc(+Y, dir)
+盒体（pelvis 退化 fallback：骨段长 < 0.03×radius_scale/0.09 时）:
+ half = ( max(0.06×rs/0.09, gap×0.62), 0.07×rs/0.09, 0.09×rs/0.09 )
+ gap = 左右大腿骨距离（fallback 0.22×rs/0.09）
+all × thickness（clamp ≥0.1）
+
+--------------------------------------------------------------------------------
+13. 实测半径（measure_radii，优先于解剖学表）
+--------------------------------------------------------------------------------
+顶点到骨轴垂距的 0.85 分位数
+clamp [0.018, 0.2] 米
+命中判定：主导骨直接命中 16 段骨骼，或 twist/ツイスト/_jnt/ｊｎｔ 类辅助骨
+沿父链上溯（≤32 跳）命中；muscleoffset / _offset 排除
+输出米制后按第 7 节换算回模型单位
+
+--------------------------------------------------------------------------------
+14. 腿部自碰撞自动收缩（auto_fit_legs）
+--------------------------------------------------------------------------------
+触发：绑定姿态下双腿胶囊对（上/下腿 4 组合）间距 < r1+r2+margin(0.004)
+动作：只缩大腿/小腿半径（不动脚），每轮 ×0.94，最多 18 轮
+下限：0.45 × 基准半径；每轮同步 half_height = max(seg_len/2 - r, 0.004)
+
+--------------------------------------------------------------------------------
+15. 运行时安全钳制
+--------------------------------------------------------------------------------
+线速度上限 = 20.0 / 0.09 ≈ 222.2 模型单位/秒（超出按比例缩回）
+角速度上限 = 25.0 rad/s
+逃逸兜底（rescueEscaped）:
+ 位置 NaN / y < ground_y − 1.5/0.09×10 / |x|>700 / |z|>700
+ → 重置到初始位姿 + 速度清零
+
+--------------------------------------------------------------------------------
+16. 模型更新管线集成顺序（runtime.rs，重写时顺序不能变）
+--------------------------------------------------------------------------------
+每帧 update 流程中布娃娃相关位置：
+ 1. animation_layer_manager.update / begin_animation
+ 2. reset_all_ik_enabled → 布娃娃激活时 set_all_ik_enabled(false)（防 IK 覆盖）
+ 3. 动画层 evaluate_normalized / VPD / 外部 IK / 眨眼 / 头部旋转 / morph
+ 4. ★ ragdoll.step(bones, elapsed)  —— 在 update_node_animation(false) 之前
+    （接管骨被 update_transforms 跳过，从属骨由 pass 1 从新姿势传播）
+ 5. update_node_animation(false)
+ 6. VR IK：仅 ragdoll.is_none() 时执行
+ 7. MMD 物理（头发/衣物）：照常运行——FollowBone 刚体读到布娃娃姿势，自动跟随
+ 8. ★ 布娃娃激活时跳过 apply_transition_blend
+    （矩阵过渡混合会向旧快照插值，与物理姿势冲突）
+骨骼接管（bone_set.rs）:
+ - ragdoll_bone_indices 持久集合（区别于每帧清空的 physics 集合）
+ - update_transforms / update_global_transform_recursive 跳过接管骨
+   （全局矩阵由布娃娃写入），子骨骼仍递归传播
+ - update_non_physics_children(ragdoll_bone_indices)：D骨/足先EX/手指/饰品跟随
+回写公式:
+ bone_offset = body0⁻¹ × bone_left（构建时算好）
+ 每帧: bone_left_new = body_pose_left × bone_offset，再 inv_z 回写
+       set_global_transform_physics(bone_index, inv_z(bone_left))
+禁用布娃娃: disable_ragdoll → 拆 ragdoll → clear_ragdoll_bone_indices（骨骼交还动画）
+
+--------------------------------------------------------------------------------
+17. VRM
+--------------------------------------------------------------------------------
+is_vrm 模型 enable_ragdoll 直接拒绝（返回 false）→ 只播死亡动画。
+
+================================================================================
+（完）—— Java 侧 16 float 参数契约见本文第 2 节 + jni_bridge/native_func.rs
+RagdollEnable：[0]地面局部Y [1-3]初速度 [4]yaw弧度 [5]厚度 [6]摩擦 [7]恢复
+[8]线阻尼 [9]角阻尼 [10]重力Y [11]关节强度 [12]总质量 [13]手臂限位 [14]缩比
+[15]保留；0 值段回退引擎默认（本文件第 2 节）
+================================================================================
