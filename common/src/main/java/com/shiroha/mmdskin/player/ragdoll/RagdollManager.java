@@ -85,6 +85,16 @@ public final class RagdollManager {
     /** 布娃娃启动失败的实体（5 秒内不重试；WeakHashMap 随实体回收自动清理）。 */
     private final WeakHashMap<LivingEntity, Long> failedAttempts = new WeakHashMap<>();
 
+    /**
+     * 待销毁的尸体模型缓存键队列。
+     *
+     * <p>尸体登记发生在渲染过程中（渲染栈里的死亡解析点），伴随的"上限逐出 → 销毁最旧
+     * 模型"如果同步执行，会在画面绘制到一半时删除 GL 对象——紧接着新尸体的工厂创建
+     * 新对象时拿到被 GL 复用的 id，加上 Mojang 状态缓存失同步，新尸体就会出现
+     * 空贴图/闪一下/连锁消失。销毁一律入队，延迟到 tick（帧间隙）执行。
+     */
+    private final java.util.ArrayDeque<ModelRequestKey> pendingModelDisposals = new java.util.ArrayDeque<>();
+
     private volatile NativeRagdollPort ragdollPort;
     private volatile NativeScenePort scenePort;
 
@@ -266,6 +276,7 @@ public final class RagdollManager {
     // ========================================================================
 
     public void tick(Minecraft minecraft) {
+        drainPendingModelDisposals();
         if (corpses.isEmpty()) {
             wasLocalDead = false;
             return;
@@ -836,6 +847,8 @@ public final class RagdollManager {
         corpses.clear();
         corpseIdByEntity.clear();
         failedAttempts.clear();
+        // 断线点不在渲染过程中，队列立即清空
+        drainPendingModelDisposals();
         restoreCamera(minecraft);
     }
 
@@ -880,14 +893,22 @@ public final class RagdollManager {
         }
         if (disposeModel) {
             // 立即彻底销毁尸体模型实例（GL 缓冲 + 贴图引用 + native 模型）。
-            // 不再等模型缓存"60s 空闲 + 60s 待删"慢慢回收：尸体键不会再被获取，
-            // 滞留只会白占 VRAM。正常逐出走这里；同实体顶替不走（实例要复用）。
-            try {
-                ClientRenderRuntime.get().modelRepository().reloadSubject(corpse.corpseKey);
-            } catch (Exception e) {
-                logger.warn("[Ragdoll] 尸体模型销毁异常: id={}", corpse.id, e);
-            }
+            // 销毁不入队执行处：入队后由 tick 在帧间隙执行（见 pendingModelDisposals），
+            // 绝不在渲染过程中删 GL 对象。正常逐出走这里；同实体顶替不走（实例要复用）。
+            pendingModelDisposals.add(corpse.corpseKey);
         }
         corpse.model = null;
+    }
+
+    /** 在帧间隙执行待销毁队列（tick 开头调用；绝不在渲染过程中调）。 */
+    private void drainPendingModelDisposals() {
+        while (!pendingModelDisposals.isEmpty()) {
+            ModelRequestKey key = pendingModelDisposals.poll();
+            try {
+                ClientRenderRuntime.get().modelRepository().reloadSubject(key);
+            } catch (Exception e) {
+                logger.warn("[Ragdoll] 尸体模型销毁异常: {}", key, e);
+            }
+        }
     }
 }
