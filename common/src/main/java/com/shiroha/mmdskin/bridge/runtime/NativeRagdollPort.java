@@ -40,6 +40,12 @@ public interface NativeRagdollPort {
 
     boolean isRagdollActive(long modelHandle);
 
+    /** 冻结/解冻布娃娃（冻结 = 姿势保持 + 跳过步进；性能保持期到点后调用）。 */
+    void setRagdollFrozen(long modelHandle, boolean frozen);
+
+    /** 开关该模型的 MMD 物理（发饰/裙摆随动）；尸体冻结时一并关闭。 */
+    void setModelPhysicsEnabled(long modelHandle, boolean enabled);
+
     /** JSON 调试串。 */
     String getRagdollDebugInfo(long modelHandle);
 }

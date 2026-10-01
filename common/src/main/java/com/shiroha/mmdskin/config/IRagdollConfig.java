@@ -30,7 +30,7 @@ public interface IRagdollConfig {
 
     /** 尸体最大并发数，超限按死亡时间从早到晚逐出。 */
     default int getMaxCorpses() {
-        return 8;
+        return 2;
     }
 
     /** 关节限位强度（1.35 = 标准手感；越大越硬，影响 Bullet 限位 ERP/CFM）。 */
@@ -51,5 +51,13 @@ public interface IRagdollConfig {
     /** 死亡动画播放时长（秒，之后布娃娃从当前姿势接手；0 = 立即布娃娃）。 */
     default float getRagdollDeathAnimSeconds() {
         return 0.0f;
+    }
+
+    /**
+     * 尸体物理保持时长（秒）：启物理后经过该时长冻结物理（姿势保持、跳过步进，
+     * 性能优化）；0 = 永久模拟直到尸体被移除。
+     */
+    default int getRagdollPhysicsKeepSeconds() {
+        return 60;
     }
 }

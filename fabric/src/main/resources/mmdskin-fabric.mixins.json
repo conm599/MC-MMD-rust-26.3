@@ -20,7 +20,8 @@
     "KeyboardInputMixin",
     "EntityMixin",
     "DeathScreenMixin",
-    "LivingEntityDeathParticleMixin"
+    "LivingEntityDeathParticleMixin",
+    "EntityRenderDispatcherMixin"
   ],
   "injectors": {
     "defaultRequire": 1

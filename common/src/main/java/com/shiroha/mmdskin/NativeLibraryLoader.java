@@ -64,7 +64,7 @@ public final class NativeLibraryLoader {
         isLinux = System.getProperty("os.name").toLowerCase().contains("linux") && !isAndroid;
     }
 
-    static final String LIBRARY_VERSION = "v1.1.0";
+    static final String LIBRARY_VERSION = "v1.1.1";
 
     private static final String TEMP_DIR_PREFIX = "mmdskin-native-" + LIBRARY_VERSION + "-";
     private static final Object TEMP_DIR_LOCK = new Object();

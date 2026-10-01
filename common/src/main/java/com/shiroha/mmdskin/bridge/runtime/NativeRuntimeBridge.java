@@ -64,6 +64,16 @@ public final class NativeRuntimeBridge implements
     }
 
     @Override
+    public void setRagdollFrozen(long modelHandle, boolean frozen) {
+        nativeFunc().RagdollSetFrozen(modelHandle, frozen);
+    }
+
+    @Override
+    public void setModelPhysicsEnabled(long modelHandle, boolean enabled) {
+        nativeFunc().SetPhysicsEnabled(modelHandle, enabled);
+    }
+
+    @Override
     public String getRagdollDebugInfo(long modelHandle) {
         return nativeFunc().RagdollGetDebugInfo(modelHandle);
     }

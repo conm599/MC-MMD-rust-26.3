@@ -15,7 +15,7 @@ use super::{
     register_animation, register_model, register_texture, ANIMATIONS, FBX_CACHE, MODELS, TEXTURES,
 };
 
-const VERSION: &str = "v1.1.0";
+const VERSION: &str = "v1.1.1";
 const BONE_OVERRIDE_TRANSFORM_STRIDE: usize = 7;
 
 fn make_override_rotation(qx: f32, qy: f32, qz: f32, qw: f32) -> Option<glam::Quat> {
@@ -3692,6 +3692,21 @@ pub extern "system" fn Java_com_shiroha_mmdskin_NativeFunc_RagdollEnable(
         }
     } else {
         0
+    }
+}
+
+/// 冻结/解冻布娃娃（冻结 = 姿势保持 + 跳过步进）
+#[no_mangle]
+pub extern "system" fn Java_com_shiroha_mmdskin_NativeFunc_RagdollSetFrozen(
+    _env: JNIEnv,
+    _class: JClass,
+    model: jlong,
+    frozen: jboolean,
+) {
+    let models = MODELS.read().unwrap();
+    if let Some(model_arc) = models.get(&model) {
+        let mut m = model_arc.lock().unwrap();
+        m.set_ragdoll_frozen(frozen != 0);
     }
 }
 

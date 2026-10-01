@@ -357,7 +357,7 @@
   "gui.mmdskin.mod_settings.ragdoll_keep_seconds.tooltip": "尸体经过该时长后被移除（仅定时模式）",
   "gui.mmdskin.mod_settings.ragdoll_keep_seconds.value": "%s 秒",
   "gui.mmdskin.mod_settings.ragdoll_max_corpses": "尸体数量上限",
-  "gui.mmdskin.mod_settings.ragdoll_max_corpses.tooltip": "同时存在的最大尸体数，超限时从最早的尸体开始逐出",
+  "gui.mmdskin.mod_settings.ragdoll_max_corpses.tooltip": "同时存在的最大尸体数，超限时从最早的尸体开始逐出（默认保守值 2：每具尸体都有持续渲染+物理开销）",
   "gui.mmdskin.mod_settings.ragdoll_joint_strength": "关节强度",
   "gui.mmdskin.mod_settings.ragdoll_joint_strength.tooltip": "布娃娃关节限位硬度（1.35=标准手感，越大越僵硬）",
   "gui.mmdskin.mod_settings.ragdoll_hide_poof": "隐藏死亡白烟",
@@ -369,5 +369,9 @@
   "gui.mmdskin.mod_settings.ragdoll_death_anim.off": "关闭（立即布娃娃）",
 
   "gui.mmdskin.death_screen_hint": "§e单击§r 自由观战 · §e双击§r 复活",
-  "gui.mmdskin.death_screen_hint_observe": "自由观战（鼠标环视 / 滚轮缩放） · 双击左键：复活"
+  "gui.mmdskin.death_screen_hint_observe": "自由观战（鼠标环视 / 滚轮缩放） · 双击左键：复活",
+  "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds": "尸体物理保持时长",
+  "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.tooltip": "启物理后经过该时长冻结尸体物理（姿势保持、跳过模拟，性能优化）；0 = 永久模拟",
+  "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.forever": "永久模拟",
+  "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.value": "%s 秒"
 }

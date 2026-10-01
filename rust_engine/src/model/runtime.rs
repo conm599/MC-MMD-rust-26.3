@@ -129,6 +129,8 @@ pub struct MmdModel {
 
     /// 死亡布娃娃（接管身体主骨骼，独立于 MMD 物理）
     ragdoll: Option<crate::ragdoll::MmdRagdoll>,
+    /// 冻结标志：true 时跳过布娃娃步进（姿势保持，省 CPU；性能保持期到点后置位）
+    ragdoll_frozen: bool,
 
     // 材质可见性控制（用于脱外套等功能）
     material_visible: Vec<bool>,
@@ -275,6 +277,7 @@ impl MmdModel {
             physics_enabled: false,
             physics_bone_transforms_buf: Vec::new(),
             ragdoll: None,
+            ragdoll_frozen: false,
             material_visible: Vec::new(),
             user_material_visible: Vec::new(),
             bone_indices: Vec::new(),
@@ -2278,7 +2281,10 @@ impl MmdModel {
         // 死亡布娃娃步进 + 回写（在骨骼全局更新之前：
         // 接管骨被 update_transforms 跳过，其从属骨由 pass 1 从新姿势传播）
         if let Some(ragdoll) = self.ragdoll.as_mut() {
-            ragdoll.step(&mut self.bone_manager, elapsed);
+            // 冻结时不步进也不回写：接管骨的全局矩阵停留在最后一次物理姿势
+            if !self.ragdoll_frozen {
+                ragdoll.step(&mut self.bone_manager, elapsed);
+            }
         }
 
         self.update_node_animation(false);
@@ -2471,6 +2477,11 @@ impl MmdModel {
     }
 
     /// 布娃娃调试信息（JSON）
+    /// 冻结/解冻布娃娃（冻结 = 姿势保持 + 跳过步进，性能保持期用）
+    pub fn set_ragdoll_frozen(&mut self, frozen: bool) {
+        self.ragdoll_frozen = frozen;
+    }
+
     pub fn ragdoll_debug_info(&self) -> String {
         match &self.ragdoll {
             Some(r) => r.debug_info(),

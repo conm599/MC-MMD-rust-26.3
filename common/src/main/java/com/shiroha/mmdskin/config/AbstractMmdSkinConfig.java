@@ -73,4 +73,5 @@ public abstract class AbstractMmdSkinConfig implements ConfigManager.IConfigProv
     @Override public boolean isHideDeathPoof() { return data.hideDeathPoof; }
     @Override public boolean isHijackDeathScreen() { return data.hijackDeathScreen; }
     @Override public float getRagdollDeathAnimSeconds() { return data.ragdollDeathAnimSeconds; }
+    @Override public int getRagdollPhysicsKeepSeconds() { return data.ragdollPhysicsKeepSeconds; }
 }

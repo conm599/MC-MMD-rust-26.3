@@ -472,9 +472,21 @@ public class ModConfigScreen {
             .startIntSlider(
                 Component.translatable("gui.mmdskin.mod_settings.ragdoll_max_corpses"),
                 data.maxCorpses, 1, 64)
-            .setDefaultValue(8)
+            .setDefaultValue(2)
             .setTooltip(Component.translatable("gui.mmdskin.mod_settings.ragdoll_max_corpses.tooltip"))
             .setSaveConsumer(value -> data.maxCorpses = value)
+            .build());
+
+        ragdollCategory.addEntry(entryBuilder
+            .startIntSlider(
+                Component.translatable("gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds"),
+                data.ragdollPhysicsKeepSeconds, 0, 300)
+            .setDefaultValue(60)
+            .setTooltip(Component.translatable("gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.tooltip"))
+            .setTextGetter(value -> value.intValue() == 0
+                ? Component.translatable("gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.forever")
+                : Component.translatable("gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.value", value))
+            .setSaveConsumer(value -> data.ragdollPhysicsKeepSeconds = value)
             .build());
 
         ragdollCategory.addEntry(entryBuilder

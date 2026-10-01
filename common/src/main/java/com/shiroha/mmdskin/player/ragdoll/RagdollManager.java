@@ -123,6 +123,17 @@ public final class RagdollManager {
         boolean renderReady;
         boolean ragdollReady;
         boolean deathAnimStarted;
+        // ===== 死亡实体跟踪（登记即开始，直到启物理交接） =====
+        /** 上一 tick 的实体位置（计算交接速度用）。 */
+        double lastTickX;
+        double lastTickY;
+        double lastTickZ;
+        boolean hasLastTickPos;
+        /** 实体速度 EMA（格/tick）——位置差分比 getDeltaMovement 更能代表"玩家当前真实运动"。 */
+        double emaVelX;
+        double emaVelY;
+        double emaVelZ;
+        int velocitySamples;
         /** 尸体模型就绪（首次渲染前）的时刻；用于等动画真正应用到骨骼。 */
         long readyMs;
         /**
@@ -131,6 +142,10 @@ public final class RagdollManager {
          * 布娃娃必须等到此时再从当前姿势构建，否则刚体按 T-pose 摊开。
          */
         int renderedFrames;
+        /** 启物理成功的时刻（物理保持时长计时起点）。 */
+        long ragdollReadyMs;
+        /** 物理已冻结（保持期到点）：姿势保持、跳过布娃娃步进与 MMD 物理。 */
+        boolean physicsFrozen;
 
         Corpse(long id, UUID subjectId, LivingEntity sourceEntity, ModelRequestKey corpseKey,
                long deathTimeMs, float[] pendingParams,
@@ -225,11 +240,13 @@ public final class RagdollManager {
         float[] params = new float[16];
         // [0] 模型局部地面高度（实体脚底相对模型原点）
         params[0] = (float) ((groundWorldY - entity.getY()) / MODEL_SCALE);
-        // [1-3] 死亡初速度（世界 m/s；引擎按 yaw 旋转换算到模型局部空间）
+        // [1-3] 死亡初速度（世界 m/s；引擎按 yaw 旋转换算到模型局部空间）。
+        // 注意单位：getDeltaMovement 是"格/tick"，契约要"米/秒"，1 tick = 1/20 秒 → ×20。
+        // 漏乘 20 就是"布娃娃没有惯性"的根因（速度只剩 1/20，看起来原地瘫倒）。
         Vec3 delta = entity.getDeltaMovement();
-        params[1] = (float) delta.x;
-        params[2] = (float) delta.y;
-        params[3] = (float) delta.z;
+        params[1] = (float) (delta.x * 20.0);
+        params[2] = (float) (delta.y * 20.0);
+        params[3] = (float) (delta.z * 20.0);
         // [4] yaw（弧度，速度换算用）
         params[4] = entity.yBodyRot * DEGREES_TO_RADIANS;
         // [5] 厚度 / [6] 摩擦 / [7] 恢复 / [8] 线阻尼 / [9] 角阻尼：0 = 引擎默认（lab 手感）
@@ -275,18 +292,34 @@ public final class RagdollManager {
                 touchCache(corpse);
             }
 
-            // 死亡动画窗口内跟踪实体位置（击退/下落还会动），并同步地面高度
-            if (corpse.renderReady && !corpse.ragdollReady
+            // 登记即跟踪死亡实体（击退/下落还在飞）：尸体模型出现的位置、启物理的交接速度都来自这里
+            if (!corpse.ragdollReady
                     && corpse.sourceEntity != null && !corpse.sourceEntity.isRemoved()) {
-                corpse.x = corpse.sourceEntity.getX();
-                corpse.y = corpse.sourceEntity.getY();
-                corpse.z = corpse.sourceEntity.getZ();
-                corpse.yawDegrees = corpse.sourceEntity.yBodyRot;
+                LivingEntity tracked = corpse.sourceEntity;
+                corpse.x = tracked.getX();
+                corpse.y = tracked.getY();
+                corpse.z = tracked.getZ();
+                corpse.yawDegrees = tracked.yBodyRot;
                 corpse.pendingParams[0] = (float) ((corpse.groundWorldY - corpse.y) / MODEL_SCALE);
+
+                if (corpse.hasLastTickPos) {
+                    double dvx = corpse.x - corpse.lastTickX;
+                    double dvy = corpse.y - corpse.lastTickY;
+                    double dvz = corpse.z - corpse.lastTickZ;
+                    corpse.emaVelX = corpse.emaVelX * 0.5 + dvx * 0.5;
+                    corpse.emaVelY = corpse.emaVelY * 0.5 + dvy * 0.5;
+                    corpse.emaVelZ = corpse.emaVelZ * 0.5 + dvz * 0.5;
+                    corpse.velocitySamples++;
+                }
+                corpse.lastTickX = corpse.x;
+                corpse.lastTickY = corpse.y;
+                corpse.lastTickZ = corpse.z;
+                corpse.hasLastTickPos = true;
             }
 
-            // 地面高度复检（射线检测，节流；模型就绪即生效）
-            if (corpse.renderReady && now - corpse.lastGroundCheckMs > GROUND_CHECK_INTERVAL_MS) {
+            // 地面高度复检（射线检测，节流；模型就绪即生效；冻结后无意义，跳过省性能）
+            if (corpse.renderReady && !corpse.physicsFrozen
+                    && now - corpse.lastGroundCheckMs > GROUND_CHECK_INTERVAL_MS) {
                 corpse.lastGroundCheckMs = now;
                 double groundY = sampleGroundY(minecraft.level, corpse.x, corpse.y, corpse.z, corpse.groundWorldY);
                 if (Math.abs(groundY - corpse.groundWorldY) > 0.01) {
@@ -296,6 +329,21 @@ public final class RagdollManager {
                     if (corpse.ragdollReady && corpse.model.modelInstance() != null) {
                         long handle = corpse.model.modelInstance().getModelHandle();
                         ragdollPort.setRagdollGround(handle, corpse.pendingParams[0]);
+                    }
+                }
+            }
+
+            // 物理保持期到点 → 冻结（性能优化）：跳过布娃娃步进 + 关 MMD 物理（发饰/裙摆），
+            // 接管骨全局矩阵停在最后一次物理姿势，尸体可见但不再消耗物理 CPU。
+            if (corpse.ragdollReady && !corpse.physicsFrozen && corpse.model != null) {
+                int keepSeconds = ConfigManager.getRagdollPhysicsKeepSeconds();
+                if (keepSeconds > 0 && now - corpse.ragdollReadyMs > keepSeconds * 1000L) {
+                    ModelInstance frozenInstance = corpse.model.modelInstance();
+                    if (frozenInstance != null && frozenInstance.getModelHandle() != 0L) {
+                        ragdollPort.setModelPhysicsEnabled(frozenInstance.getModelHandle(), false);
+                        ragdollPort.setRagdollFrozen(frozenInstance.getModelHandle(), true);
+                        corpse.physicsFrozen = true;
+                        logger.info("[Ragdoll] 物理保持期到点，尸体冻结: id={} ({} s)", corpse.id, keepSeconds);
                     }
                 }
             }
@@ -404,8 +452,19 @@ public final class RagdollManager {
             return false;
         }
         float[] params = corpse.pendingParams.clone();
-        // 继承死亡瞬间的动量（击退 / 下落速度）：引擎按 yaw 旋转换算到模型局部空间。
-        // 不清零——清零会让尸体原地直挺挺瘫倒，没有惯性。
+        // 交接速度：优先用位置差分 EMA——它是玩家死亡后仍在飞行的"当前真实速度"，
+        // 尸体全程跟踪实体，启物理瞬间以此接管轨迹，不分离、不丢失惯性。
+        // （×20：EMA 是格/tick，FFI 契约要米/秒）
+        // 实体已消失（mob 死亡 20 tick 后被移除）时退回登记时的速度快照。
+        if (corpse.velocitySamples >= 2) {
+            params[1] = (float) (corpse.emaVelX * 20.0);
+            params[2] = (float) (corpse.emaVelY * 20.0);
+            params[3] = (float) (corpse.emaVelZ * 20.0);
+        }
+        LivingEntity source = corpse.sourceEntity;
+        if (source != null && !source.isRemoved()) {
+            params[4] = source.yBodyRot * DEGREES_TO_RADIANS;
+        }
         boolean ok = ragdollPort.enterRagdoll(instance.getModelHandle(), params);
         if (!ok) {
             logger.info("[Ragdoll] 布娃娃启动失败（冷却 {} ms）: id={}", FAILED_RETRY_COOLDOWN_MS, corpse.id);
@@ -413,7 +472,9 @@ public final class RagdollManager {
             return false;
         }
         corpse.ragdollReady = true;
-        logger.info("[Ragdoll] 布娃娃启用: id={}", corpse.id);
+        corpse.ragdollReadyMs = System.currentTimeMillis();
+        logger.info("[Ragdoll] 布娃娃启用: id={} 交接速度=({}, {}, {}) m/s",
+                corpse.id, params[1], params[2], params[3]);
         return true;
     }
 
@@ -453,15 +514,16 @@ public final class RagdollManager {
     // ========================================================================
 
     /**
-     * 布娃娃就绪后取消实体路径的 MMD 渲染（改为渲染独立尸体模型）。
-     * 只对死亡实体本体生效：复活后的新实体 health>0，不受抑制（否则复活玩家模型消失）。
+     * 死亡实体本体的渲染抑制（MMD 路径 + 原版路径 + 阴影）。
+     * <b>登记即隐藏</b>，不等尸体模型就绪：否则死亡瞬间会出现"本体带着阴影飞走 +
+     * 尸体原地出现"的分离——玩家身体从死亡那一帧起就由尸体管线接管。
+     * 只对死亡实体本体生效：复活后的新实体 health>0，不受抑制。
      */
     public boolean shouldSuppressEntityRender(LivingEntity entity) {
         if (entity == null || !entity.isDeadOrDying()) {
             return false;
         }
-        Corpse corpse = findCorpseForEntity(entity);
-        return corpse != null && corpse.renderReady;
+        return findCorpseForEntity(entity) != null;
     }
 
     /** 是否应隐藏该实体的原版死亡白烟（死亡粒子劫持）。 */

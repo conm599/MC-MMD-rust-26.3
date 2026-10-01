@@ -220,7 +220,7 @@ public class ConfigManager {
     }
 
     public static int getMaxCorpses() {
-        return provider != null ? provider.getMaxCorpses() : 8;
+        return provider != null ? provider.getMaxCorpses() : 2;
     }
 
     public static float getRagdollJointStrength() {
@@ -237,6 +237,10 @@ public class ConfigManager {
 
     public static float getRagdollDeathAnimSeconds() {
         return provider != null ? provider.getRagdollDeathAnimSeconds() : 0.0f;
+    }
+
+    public static int getRagdollPhysicsKeepSeconds() {
+        return provider != null ? provider.getRagdollPhysicsKeepSeconds() : 60;
     }
 
     public interface IConfigProvider extends IRenderConfig, IToonConfig, IPhysicsConfig, IVRConfig, IRagdollConfig {

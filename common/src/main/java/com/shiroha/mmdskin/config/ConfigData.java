@@ -79,11 +79,14 @@ public class ConfigData {
     public String corpseKeepMode = "NEARBY";
     public double corpseKeepRadius = 48.0;
     public long corpseKeepSeconds = 60;
-    public int maxCorpses = 8;
+    /** 保守默认：每具尸体都是一份持续渲染 + 物理开销，上限越小越稳（合并主线时的保守值）。 */
+    public int maxCorpses = 2;
     public float ragdollJointStrength = 1.35f;
     public boolean hideDeathPoof = true;
     public boolean hijackDeathScreen = true;
     public float ragdollDeathAnimSeconds = 0.0f;
+    /** 尸体物理保持时长（秒）：到点冻结物理（姿势保持），0 = 永久模拟。 */
+    public int ragdollPhysicsKeepSeconds = 60;
 
     public Map<String, String> mobModelReplacements = new LinkedHashMap<>();
 
@@ -161,6 +164,7 @@ public class ConfigData {
         maxCorpses = Math.max(1, Math.min(64, maxCorpses));
         ragdollJointStrength = clamp(ragdollJointStrength, 0.3f, 4.0f);
         ragdollDeathAnimSeconds = clamp(ragdollDeathAnimSeconds, 0.0f, 5.0f);
+        ragdollPhysicsKeepSeconds = Math.max(0, Math.min(3600, ragdollPhysicsKeepSeconds));
     }
 
     private static float clamp(float value, float min, float max) {

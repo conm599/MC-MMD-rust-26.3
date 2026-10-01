@@ -350,4 +350,7 @@ public class NativeFunc {
     public native boolean RagdollIsActive(long model);
 
     public native String RagdollGetDebugInfo(long model);
+
+    /** 冻结/解冻布娃娃（冻结 = 姿势保持 + 跳过物理步进，性能保持期到点后调用）。 */
+    public native void RagdollSetFrozen(long model, boolean frozen);
 }

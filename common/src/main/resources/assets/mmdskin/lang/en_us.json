@@ -330,7 +330,6 @@
   "gui.mmdskin.model_anim.slot.crawl": "Crawl",
   "gui.mmdskin.model_anim.slot.lieDown": "Lie Down",
   "gui.mmdskin.mod_settings.category.ragdoll": "Death Ragdoll",
-
   "gui.mmdskin.mod_settings.ragdoll_enabled": "Enable death ragdoll",
   "gui.mmdskin.mod_settings.ragdoll_enabled.tooltip": "Spawns an independent MMD corpse model driven by physics ragdoll on death (requires an MMD-rendered model)",
   "gui.mmdskin.mod_settings.ragdoll_keep_mode": "Corpse keep mode",
@@ -345,7 +344,7 @@
   "gui.mmdskin.mod_settings.ragdoll_keep_seconds.tooltip": "Corpses are removed after this duration (timed mode only)",
   "gui.mmdskin.mod_settings.ragdoll_keep_seconds.value": "%s s",
   "gui.mmdskin.mod_settings.ragdoll_max_corpses": "Max corpses",
-  "gui.mmdskin.mod_settings.ragdoll_max_corpses.tooltip": "Maximum simultaneous corpses; oldest corpses are evicted first when exceeded",
+  "gui.mmdskin.mod_settings.ragdoll_max_corpses.tooltip": "Maximum simultaneous corpses; oldest corpses are evicted first when exceeded (conservative default 2: each corpse costs continuous rendering + physics)",
   "gui.mmdskin.mod_settings.ragdoll_joint_strength": "Joint strength",
   "gui.mmdskin.mod_settings.ragdoll_joint_strength.tooltip": "Ragdoll joint limit stiffness (1.35 = standard feel; higher = stiffer)",
   "gui.mmdskin.mod_settings.ragdoll_hide_poof": "Hide death poof",
@@ -355,7 +354,10 @@
   "gui.mmdskin.mod_settings.ragdoll_death_anim": "Death animation duration",
   "gui.mmdskin.mod_settings.ragdoll_death_anim.tooltip": "Seconds the death animation plays before the ragdoll takes over from the current pose; 0 = ragdoll immediately",
   "gui.mmdskin.mod_settings.ragdoll_death_anim.off": "Off (instant ragdoll)",
-
   "gui.mmdskin.death_screen_hint": "§eClick§r free observe · §eDouble-click§r respawn",
-  "gui.mmdskin.death_screen_hint_observe": "Free observe (mouse look / scroll zoom) · Double left-click: respawn"
+  "gui.mmdskin.death_screen_hint_observe": "Free observe (mouse look / scroll zoom) · Double left-click: respawn",
+  "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds": "Corpse physics keep duration",
+  "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.tooltip": "Freezes corpse physics after this duration since ragdoll start (pose hold, simulation skipped, performance); 0 = simulate forever",
+  "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.forever": "Forever",
+  "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.value": "%s s"
 }
