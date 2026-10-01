@@ -63,4 +63,14 @@ public abstract class AbstractMmdSkinConfig implements ConfigManager.IConfigProv
 
     @Override public boolean isVREnabled() { return data.vrEnabled; }
     @Override public float getVRArmIKStrength() { return data.vrArmIKStrength; }
+
+    @Override public boolean isRagdollEnabled() { return data.ragdollEnabled; }
+    @Override public String getCorpseKeepMode() { return data.corpseKeepMode; }
+    @Override public double getCorpseKeepRadius() { return data.corpseKeepRadius; }
+    @Override public long getCorpseKeepSeconds() { return data.corpseKeepSeconds; }
+    @Override public int getMaxCorpses() { return data.maxCorpses; }
+    @Override public float getRagdollJointStrength() { return data.ragdollJointStrength; }
+    @Override public boolean isHideDeathPoof() { return data.hideDeathPoof; }
+    @Override public boolean isHijackDeathScreen() { return data.hijackDeathScreen; }
+    @Override public float getRagdollDeathAnimSeconds() { return data.ragdollDeathAnimSeconds; }
 }

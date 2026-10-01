@@ -203,7 +203,43 @@ public class ConfigManager {
         return provider != null ? provider.getMobModelReplacement(entityTypeId) : "";
     }
 
-    public interface IConfigProvider extends IRenderConfig, IToonConfig, IPhysicsConfig, IVRConfig {
+    public static boolean isRagdollEnabled() {
+        return provider != null ? provider.isRagdollEnabled() : true;
+    }
+
+    public static String getCorpseKeepMode() {
+        return provider != null ? provider.getCorpseKeepMode() : "NEARBY";
+    }
+
+    public static double getCorpseKeepRadius() {
+        return provider != null ? provider.getCorpseKeepRadius() : 48.0;
+    }
+
+    public static long getCorpseKeepSeconds() {
+        return provider != null ? provider.getCorpseKeepSeconds() : 60;
+    }
+
+    public static int getMaxCorpses() {
+        return provider != null ? provider.getMaxCorpses() : 8;
+    }
+
+    public static float getRagdollJointStrength() {
+        return provider != null ? provider.getRagdollJointStrength() : 1.35f;
+    }
+
+    public static boolean isHideDeathPoof() {
+        return provider != null ? provider.isHideDeathPoof() : true;
+    }
+
+    public static boolean isHijackDeathScreen() {
+        return provider != null ? provider.isHijackDeathScreen() : true;
+    }
+
+    public static float getRagdollDeathAnimSeconds() {
+        return provider != null ? provider.getRagdollDeathAnimSeconds() : 0.0f;
+    }
+
+    public interface IConfigProvider extends IRenderConfig, IToonConfig, IPhysicsConfig, IVRConfig, IRagdollConfig {
         String getMobModelReplacement(String entityTypeId);
     }
 }

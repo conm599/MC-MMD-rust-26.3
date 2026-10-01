@@ -75,6 +75,16 @@ public class ConfigData {
     public boolean vrEnabled = false;
     public float vrArmIKStrength = 1.0f;
 
+    public boolean ragdollEnabled = true;
+    public String corpseKeepMode = "NEARBY";
+    public double corpseKeepRadius = 48.0;
+    public long corpseKeepSeconds = 60;
+    public int maxCorpses = 8;
+    public float ragdollJointStrength = 1.35f;
+    public boolean hideDeathPoof = true;
+    public boolean hijackDeathScreen = true;
+    public float ragdollDeathAnimSeconds = 0.0f;
+
     public Map<String, String> mobModelReplacements = new LinkedHashMap<>();
 
     public static ConfigData load(Path configPath) {
@@ -141,6 +151,16 @@ public class ConfigData {
         toonOutlineB = clamp(toonOutlineB, 0.0f, 1.0f);
         maxPhysicsModelsPerFrame = Math.max(1, maxPhysicsModelsPerFrame);
         physicsLodMaxDistance = Math.max(0.0f, physicsLodMaxDistance);
+
+        if (corpseKeepMode == null
+            || (!corpseKeepMode.equals("NEARBY") && !corpseKeepMode.equals("SECONDS") && !corpseKeepMode.equals("FOREVER"))) {
+            corpseKeepMode = "NEARBY";
+        }
+        corpseKeepRadius = clamp((float) corpseKeepRadius, 8.0f, 256.0f);
+        corpseKeepSeconds = Math.max(5, corpseKeepSeconds);
+        maxCorpses = Math.max(1, Math.min(64, maxCorpses));
+        ragdollJointStrength = clamp(ragdollJointStrength, 0.3f, 4.0f);
+        ragdollDeathAnimSeconds = clamp(ragdollDeathAnimSeconds, 0.0f, 5.0f);
     }
 
     private static float clamp(float value, float min, float max) {

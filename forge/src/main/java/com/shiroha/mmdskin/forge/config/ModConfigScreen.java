@@ -421,9 +421,121 @@ public class ModConfigScreen {
             ));
         }
 
+        ConfigCategory ragdollCategory = builder.getOrCreateCategory(
+            Component.translatable("gui.mmdskin.mod_settings.category.ragdoll"));
+
+        ragdollCategory.addEntry(entryBuilder
+            .startBooleanToggle(
+                Component.translatable("gui.mmdskin.mod_settings.ragdoll_enabled"),
+                data.ragdollEnabled)
+            .setDefaultValue(true)
+            .setTooltip(Component.translatable("gui.mmdskin.mod_settings.ragdoll_enabled.tooltip"))
+            .setSaveConsumer(value -> data.ragdollEnabled = value)
+            .build());
+
+        // 本项目的 Cloth Config 版本没有下拉组件：保留模式用 int 滑条 0-2 映射三种模式
+        ragdollCategory.addEntry(entryBuilder
+            .startIntSlider(
+                Component.translatable("gui.mmdskin.mod_settings.ragdoll_keep_mode"),
+                keepModeIndex(data.corpseKeepMode), 0, 2)
+            .setDefaultValue(0)
+            .setTooltip(Component.translatable("gui.mmdskin.mod_settings.ragdoll_keep_mode.tooltip"))
+            .setTextGetter(value -> Component.translatable(
+                KEEP_MODE_LABEL_KEYS[Math.max(0, Math.min(2, value.intValue()))]))
+            .setSaveConsumer(value -> data.corpseKeepMode =
+                KEEP_MODE_VALUES[Math.max(0, Math.min(2, value.intValue()))])
+            .build());
+
+        ragdollCategory.addEntry(entryBuilder
+            .startIntSlider(
+                Component.translatable("gui.mmdskin.mod_settings.ragdoll_keep_radius"),
+                (int) data.corpseKeepRadius, 8, 256)
+            .setDefaultValue(48)
+            .setTooltip(Component.translatable("gui.mmdskin.mod_settings.ragdoll_keep_radius.tooltip"))
+            .setTextGetter(value -> Component.translatable(
+                "gui.mmdskin.mod_settings.ragdoll_keep_radius.value", value))
+            .setSaveConsumer(value -> data.corpseKeepRadius = value.intValue())
+            .build());
+
+        ragdollCategory.addEntry(entryBuilder
+            .startIntSlider(
+                Component.translatable("gui.mmdskin.mod_settings.ragdoll_keep_seconds"),
+                (int) data.corpseKeepSeconds, 5, 600)
+            .setDefaultValue(60)
+            .setTooltip(Component.translatable("gui.mmdskin.mod_settings.ragdoll_keep_seconds.tooltip"))
+            .setTextGetter(value -> Component.translatable(
+                "gui.mmdskin.mod_settings.ragdoll_keep_seconds.value", value))
+            .setSaveConsumer(value -> data.corpseKeepSeconds = value.intValue())
+            .build());
+
+        ragdollCategory.addEntry(entryBuilder
+            .startIntSlider(
+                Component.translatable("gui.mmdskin.mod_settings.ragdoll_max_corpses"),
+                data.maxCorpses, 1, 64)
+            .setDefaultValue(8)
+            .setTooltip(Component.translatable("gui.mmdskin.mod_settings.ragdoll_max_corpses.tooltip"))
+            .setSaveConsumer(value -> data.maxCorpses = value)
+            .build());
+
+        ragdollCategory.addEntry(entryBuilder
+            .startIntSlider(
+                Component.translatable("gui.mmdskin.mod_settings.ragdoll_joint_strength"),
+                Math.round(data.ragdollJointStrength * 20.0F), 6, 80)
+            .setDefaultValue(27)
+            .setTooltip(Component.translatable("gui.mmdskin.mod_settings.ragdoll_joint_strength.tooltip"))
+            .setTextGetter(value -> Component.literal(String.format("%.2f", value.intValue() / 20.0F)))
+            .setSaveConsumer(value -> data.ragdollJointStrength = value.intValue() / 20.0F)
+            .build());
+
+        ragdollCategory.addEntry(entryBuilder
+            .startBooleanToggle(
+                Component.translatable("gui.mmdskin.mod_settings.ragdoll_hide_poof"),
+                data.hideDeathPoof)
+            .setDefaultValue(true)
+            .setTooltip(Component.translatable("gui.mmdskin.mod_settings.ragdoll_hide_poof.tooltip"))
+            .setSaveConsumer(value -> data.hideDeathPoof = value)
+            .build());
+
+        ragdollCategory.addEntry(entryBuilder
+            .startBooleanToggle(
+                Component.translatable("gui.mmdskin.mod_settings.ragdoll_hijack_death_screen"),
+                data.hijackDeathScreen)
+            .setDefaultValue(true)
+            .setTooltip(Component.translatable("gui.mmdskin.mod_settings.ragdoll_hijack_death_screen.tooltip"))
+            .setSaveConsumer(value -> data.hijackDeathScreen = value)
+            .build());
+
+        ragdollCategory.addEntry(entryBuilder
+            .startIntSlider(
+                Component.translatable("gui.mmdskin.mod_settings.ragdoll_death_anim"),
+                Math.round(data.ragdollDeathAnimSeconds * 10.0F), 0, 50)
+            .setDefaultValue(0)
+            .setTooltip(Component.translatable("gui.mmdskin.mod_settings.ragdoll_death_anim.tooltip"))
+            .setTextGetter(value -> value.intValue() == 0
+                ? Component.translatable("gui.mmdskin.mod_settings.ragdoll_death_anim.off")
+                : Component.literal(String.format("%.1fs", value.intValue() / 10.0F)))
+            .setSaveConsumer(value -> data.ragdollDeathAnimSeconds = value.intValue() / 10.0F)
+            .build());
+
         builder.setSavingRunnable(() -> saveConfig(data));
 
         return builder.build();
+    }
+
+    private static final String[] KEEP_MODE_VALUES = {"NEARBY", "SECONDS", "FOREVER"};
+    private static final String[] KEEP_MODE_LABEL_KEYS = {
+        "gui.mmdskin.mod_settings.ragdoll_keep_mode.nearby",
+        "gui.mmdskin.mod_settings.ragdoll_keep_mode.seconds",
+        "gui.mmdskin.mod_settings.ragdoll_keep_mode.forever"
+    };
+
+    static int keepModeIndex(String mode) {
+        for (int i = 0; i < KEEP_MODE_VALUES.length; i++) {
+            if (KEEP_MODE_VALUES[i].equals(mode)) {
+                return i;
+            }
+        }
+        return 0;
     }
 
     static void saveConfig(ConfigData data) {
