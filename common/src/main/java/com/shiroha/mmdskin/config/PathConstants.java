@@ -1,6 +1,5 @@
 package com.shiroha.mmdskin.config;
 
-import net.minecraft.client.Minecraft;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -46,8 +45,14 @@ public final class PathConstants {
 
     private PathConstants() {}
 
+    /**
+     * 游戏根目录。
+     *
+     * <p>走 {@link GameDirectoryProvider} 而不是直接 {@code Minecraft.getInstance()}：
+     * 专用服务器（服主）没有客户端 Minecraft 实例，直接取会 NPE。
+     */
     public static String getGameDirectory() {
-        return Minecraft.getInstance().gameDirectory.getAbsolutePath();
+        return GameDirectoryProvider.get().getAbsolutePath();
     }
 
     public static File getSkinRootDir() {

@@ -62,6 +62,8 @@ final class FabricClientRuntimeHooks {
         }
 
         ClientRenderRuntime.get().modelRepository().tick();
+        // 自动下载：只扫半径内的玩家，只下他们正在用的、服务器授权过的模型
+        ModelDistributionClient.tickAutoDownload(minecraft);
         // 死亡布娃娃：尸体就绪检测 / 保留策略 / 相机劫持
         RagdollManager.getInstance().tick(minecraft);
         StageClientRuntime.get().animSyncHelper().tickPending();

@@ -23,6 +23,16 @@ public class ConfigManager {
         return provider != null ? provider.getModelPoolMaxCount() : 20;
     }
 
+    /** 是否自动下载附近玩家正在使用的模型。 */
+    public static boolean isAutoDownloadNearbyModels() {
+        return provider != null && provider.isAutoDownloadNearbyModels();
+    }
+
+    /** 自动下载半径（格）。 */
+    public static int getAutoDownloadRadius() {
+        return provider != null ? provider.getAutoDownloadRadius() : 48;
+    }
+
     public static boolean isMMDShaderEnabled() {
         return provider != null ? provider.isMMDShaderEnabled() : false;
     }

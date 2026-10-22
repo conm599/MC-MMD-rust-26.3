@@ -1,5 +1,6 @@
 package com.shiroha.mmdskin.player.sync;
 
+import com.shiroha.mmdskin.distrib.ModelDistributionClient;
 import com.shiroha.mmdskin.player.sync.BoneSyncNetworkHandler;
 import com.shiroha.mmdskin.stage.client.network.StageNetworkHandler;
 import java.util.UUID;
@@ -28,6 +29,10 @@ public final class ClientNetworkBindings {
                 sender.sendString(NetworkMessageType.STAGE_MULTI, payload));
         BoneSyncNetworkHandler.setNetworkSender(boneData ->
                 sender.sendBinary(NetworkMessageType.BONE_SYNC, boneData));
+
+        // 模型分发：客户端点「下载」时向服务器请求，附带断点续传的文件序号
+        ModelDistributionClient.setRequester((modelName, firstIncompletePath) ->
+                sender.sendString(NetworkMessageType.DISTRIB_REQUEST, modelName + "|" + firstIncompletePath));
     }
 
     public interface ClientNetworkSender {
@@ -48,6 +53,7 @@ public final class ClientNetworkBindings {
         MODEL_SELECT,
         MORPH_SYNC,
         STAGE_MULTI,
-        BONE_SYNC
+        BONE_SYNC,
+        DISTRIB_REQUEST
     }
 }

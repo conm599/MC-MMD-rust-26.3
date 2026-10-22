@@ -13,6 +13,10 @@ public abstract class AbstractMmdSkinConfig implements ConfigManager.IConfigProv
 
     @Override public boolean isOpenGLLightingEnabled() { return data.openGLEnableLighting; }
     @Override public int getModelPoolMaxCount() { return data.modelPoolMaxCount; }
+
+    @Override public boolean isAutoDownloadNearbyModels() { return data.autoDownloadNearbyModels; }
+
+    @Override public int getAutoDownloadRadius() { return data.autoDownloadRadius; }
     @Override public boolean isMMDShaderEnabled() { return data.mmdShaderEnabled; }
     @Override public boolean isGpuSkinningEnabled() { return data.gpuSkinningEnabled; }
     @Override public boolean isGpuMorphEnabled() { return data.gpuMorphEnabled; }

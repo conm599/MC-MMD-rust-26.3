@@ -23,6 +23,12 @@ public class ConfigData {
 
     public boolean openGLEnableLighting = true;
     public int modelPoolMaxCount = 20;
+
+    /** 自动下载附近玩家正在使用的模型（仅限房主授权分发的模型）。 */
+    public boolean autoDownloadNearbyModels = false;
+
+    /** 自动下载的半径（格）。 */
+    public int autoDownloadRadius = 48;
     public boolean mmdShaderEnabled = false;
 
     public boolean gpuSkinningEnabled = false;

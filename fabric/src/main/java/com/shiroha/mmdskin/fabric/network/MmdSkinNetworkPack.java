@@ -2,6 +2,7 @@ package com.shiroha.mmdskin.fabric.network;
 
 import java.util.UUID;
 
+import com.shiroha.mmdskin.distrib.ModelDistributionClient;
 import com.shiroha.mmdskin.player.sync.ClientNetworkBindings;
 import com.shiroha.mmdskin.fabric.register.MmdSkinRegisterCommon;
 import com.shiroha.mmdskin.compat.maid.runtime.MaidMMDModelManager;
@@ -33,6 +34,7 @@ public class MmdSkinNetworkPack {
             case MORPH_SYNC -> NetworkOpCode.MORPH_SYNC;
             case STAGE_MULTI -> NetworkOpCode.STAGE_MULTI;
             case BONE_SYNC -> NetworkOpCode.BONE_SYNC;
+            case DISTRIB_REQUEST -> NetworkOpCode.DISTRIB_REQUEST;
         };
     }
 
@@ -73,6 +75,20 @@ public class MmdSkinNetworkPack {
         int opCode = buffer.readInt();
         UUID playerUUID = buffer.readUUID();
 
+        if (NetworkOpCode.isDistribution(opCode)) {
+            // 分发包要在下面那些"只处理别人"的早退之前处理：完成包的 UUID 就是自己
+            if (NetworkOpCode.isDistributionBinaryPayload(opCode)) {
+                byte[] data = buffer.readByteArray();
+                handleDistributionBinary(opCode, data);
+            } else {
+                String data = buffer.readUtf();
+                if (opCode == NetworkOpCode.DISTRIB_COMPLETE) {
+                    ModelDistributionClient.onComplete(data);
+                }
+            }
+            return;
+        }
+
         if (NetworkOpCode.isStringPayload(opCode)) {
             String data = buffer.readUtf();
             handleString(opCode, playerUUID, data);
@@ -83,6 +99,21 @@ public class MmdSkinNetworkPack {
         } else {
             int arg0 = buffer.readInt();
             handleInt(opCode, playerUUID, arg0);
+        }
+    }
+
+    /** 模型分发的二进制载荷处理（清单 / 详细清单 / 分块）。 */
+    private static void handleDistributionBinary(int opCode, byte[] data) {
+        if (data == null) {
+            return;
+        }
+        String payload = new String(data, java.nio.charset.StandardCharsets.UTF_8);
+        switch (opCode) {
+            case NetworkOpCode.DISTRIB_MANIFEST -> ModelDistributionClient.onManifest(payload);
+            case NetworkOpCode.DISTRIB_OFFER -> ModelDistributionClient.onOfferPage(data);
+            case NetworkOpCode.DISTRIB_CHUNK -> ModelDistributionClient.onChunk(data);
+            default -> {
+            }
         }
     }
 

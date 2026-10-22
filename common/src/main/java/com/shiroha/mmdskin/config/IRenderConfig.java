@@ -7,6 +7,12 @@ package com.shiroha.mmdskin.config;
 public interface IRenderConfig {
     boolean isOpenGLLightingEnabled();
     int getModelPoolMaxCount();
+
+    /** 是否自动下载附近玩家正在使用的模型。 */
+    boolean isAutoDownloadNearbyModels();
+
+    /** 自动下载半径（格）。 */
+    int getAutoDownloadRadius();
     boolean isMMDShaderEnabled();
 
     default boolean isGpuSkinningEnabled() { return false; }

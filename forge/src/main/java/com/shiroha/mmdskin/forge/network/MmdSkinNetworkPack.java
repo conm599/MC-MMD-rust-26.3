@@ -4,6 +4,8 @@ import com.shiroha.mmdskin.forge.register.MmdSkinRegisterCommon;
 import com.shiroha.mmdskin.forge.stage.ForgeStageSessionRegistry;
 import com.shiroha.mmdskin.compat.maid.runtime.MaidMMDModelManager;
 import com.shiroha.mmdskin.player.animation.PendingAnimSignalCache;
+import com.shiroha.mmdskin.distrib.ModelDistributionClient;
+import com.shiroha.mmdskin.distrib.ModelDistributionService;
 import com.shiroha.mmdskin.player.sync.ClientNetworkBindings;
 import com.shiroha.mmdskin.player.sync.PlayerModelSyncService;
 import com.shiroha.mmdskin.player.runtime.MmdSkinRendererPlayerHelper;
@@ -45,6 +47,7 @@ public class MmdSkinNetworkPack {
             case MORPH_SYNC -> NetworkOpCode.MORPH_SYNC;
             case STAGE_MULTI -> NetworkOpCode.STAGE_MULTI;
             case BONE_SYNC -> NetworkOpCode.BONE_SYNC;
+            case DISTRIB_REQUEST -> NetworkOpCode.DISTRIB_REQUEST;
         };
     }
 
@@ -84,7 +87,7 @@ public class MmdSkinNetworkPack {
         opCode = buffer.readInt();
         playerUUID = buffer.readUUID();
 
-        if (opCode == NetworkOpCode.BONE_SYNC) {
+        if (opCode == NetworkOpCode.BONE_SYNC || NetworkOpCode.isDistributionBinaryPayload(opCode)) {
             animId = "";
             arg0 = 0;
             binaryPayload = buffer.readByteArray();
@@ -107,7 +110,7 @@ public class MmdSkinNetworkPack {
         buffer.writeInt(opCode);
         buffer.writeUUID(playerUUID);
 
-        if (opCode == NetworkOpCode.BONE_SYNC) {
+        if (opCode == NetworkOpCode.BONE_SYNC || NetworkOpCode.isDistributionBinaryPayload(opCode)) {
             buffer.writeByteArray(binaryPayload != null ? binaryPayload : new byte[0]);
         } else if (NetworkOpCode.isStringPayload(opCode)) {
             buffer.writeUtf(animId);
@@ -151,6 +154,14 @@ public class MmdSkinNetworkPack {
             return;
         }
 
+    if (opCode == NetworkOpCode.DISTRIB_REQUEST) {
+        int separator = animId.lastIndexOf('|');
+        String modelName = separator > 0 ? animId.substring(0, separator) : animId;
+        String firstIncompletePath = separator > 0 ? animId.substring(separator + 1) : "";
+        ModelDistributionService.enqueueModel(sender, sender.getUUID(), modelName, firstIncompletePath);
+        return;
+    }
+
         if (opCode == NetworkOpCode.STAGE_MULTI) {
             if (sender.getServer() != null) {
                 ForgeStageSessionRegistry.getInstance().handlePacket(sender.getServer(), sender, animId);
@@ -161,7 +172,33 @@ public class MmdSkinNetworkPack {
         MmdSkinRegisterCommon.channel.send(PacketDistributor.ALL.noArg(), this);
     }
 
+    /** 模型分发的客户端处理（清单 / 详细清单 / 分块 / 完成）。 */
+    private void handleDistribution() {
+        if (opCode == NetworkOpCode.DISTRIB_CHUNK) {
+            ModelDistributionClient.onChunk(binaryPayload);
+            return;
+        }
+        if (opCode == NetworkOpCode.DISTRIB_COMPLETE) {
+            ModelDistributionClient.onComplete(animId);
+            return;
+        }
+        String payload = binaryPayload != null
+                ? new String(binaryPayload, java.nio.charset.StandardCharsets.UTF_8)
+                : "";
+        if (opCode == NetworkOpCode.DISTRIB_MANIFEST) {
+            ModelDistributionClient.onManifest(payload);
+        } else if (opCode == NetworkOpCode.DISTRIB_OFFER) {
+            ModelDistributionClient.onOfferPage(binaryPayload);
+        }
+    }
+
     private void doInClient() {
+        // 分发包要在 "mc.player == null" 早退之前处理：
+        // 玩家实体还没建好时收到的完成包，丢了模型就装不上了。
+        if (NetworkOpCode.isDistribution(opCode)) {
+            handleDistribution();
+            return;
+        }
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
         if (opCode == NetworkOpCode.STAGE_MULTI) {

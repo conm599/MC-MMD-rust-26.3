@@ -421,6 +421,27 @@ public class ModConfigScreen {
             ));
         }
 
+        ConfigCategory distributionCategory = builder.getOrCreateCategory(
+                Component.translatable("gui.mmdskin.mod_settings.category.distribution"));
+
+        distributionCategory.addEntry(entryBuilder
+                .startBooleanToggle(
+                        Component.translatable("gui.mmdskin.mod_settings.auto_download_nearby"),
+                        data.autoDownloadNearbyModels)
+                .setDefaultValue(false)
+                .setTooltip(Component.translatable("gui.mmdskin.mod_settings.auto_download_nearby.tooltip"))
+                .setSaveConsumer(value -> data.autoDownloadNearbyModels = value)
+                .build());
+
+        distributionCategory.addEntry(entryBuilder
+                .startIntSlider(
+                        Component.translatable("gui.mmdskin.mod_settings.auto_download_radius"),
+                        data.autoDownloadRadius, 16, 128)
+                .setDefaultValue(48)
+                .setTooltip(Component.translatable("gui.mmdskin.mod_settings.auto_download_radius.tooltip"))
+                .setSaveConsumer(value -> data.autoDownloadRadius = value)
+                .build());
+
         ConfigCategory ragdollCategory = builder.getOrCreateCategory(
             Component.translatable("gui.mmdskin.mod_settings.category.ragdoll"));
 
