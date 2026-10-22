@@ -848,6 +848,7 @@ public final class RagdollManager {
         corpseIdByEntity.clear();
         failedAttempts.clear();
         // 断线点不在渲染过程中，队列立即清空
+        // （GL 删除由 GlDisposal 交回渲染线程，详见 render/backend/GlDisposal.java）
         drainPendingModelDisposals();
         restoreCamera(minecraft);
     }
@@ -902,6 +903,8 @@ public final class RagdollManager {
 
     /** 在帧间隙执行待销毁队列（tick 开头调用；绝不在渲染过程中调）。 */
     private void drainPendingModelDisposals() {
+        // 断线路径会在网络线程走到这里（非渲染线程）。销毁本身照常执行 ——
+        // 里面的 glDelete* 由 GlDisposal 统一交回渲染线程，不会在网络线程碰 GL。
         while (!pendingModelDisposals.isEmpty()) {
             ModelRequestKey key = pendingModelDisposals.poll();
             try {

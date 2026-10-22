@@ -4,6 +4,7 @@ import com.shiroha.mmdskin.config.UIConstants;
 import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
 import com.shiroha.mmdskin.debug.client.PerformanceHud;
 import com.shiroha.mmdskin.forge.network.MmdSkinNetworkPack;
+import com.shiroha.mmdskin.distrib.ModelDistributionClient;
 import com.shiroha.mmdskin.player.sync.PlayerModelSyncService;
 import com.shiroha.mmdskin.player.runtime.MmdSkinRendererPlayerHelper;
 import com.shiroha.mmdskin.render.bootstrap.ClientRenderRuntime;
@@ -102,9 +103,12 @@ final class ForgeClientRuntimeHooks {
     }
 
     void onPlayerLoggedOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        // LoggingOut 可能在网络线程触发：清理链路里会删 GL 对象，
+        // 而 GL 上下文是线程绑定的 —— 所有 glDelete* 一律走 GlDisposal 交回渲染线程。
         RagdollManager.getInstance().clearAll();
         MMDCameraController.getInstance().exitStageMode();
         PlayerModelSyncService.onDisconnect();
+        ModelDistributionClient.onDisconnect();
         MmdSkinRendererPlayerHelper.onDisconnect();
         StageClientRuntime.get().sessionService().onDisconnect();
     }

@@ -1,5 +1,6 @@
 package com.shiroha.mmdskin.render.backend.gpu;
 
+import com.shiroha.mmdskin.render.backend.GlDisposal;
 import com.shiroha.mmdskin.render.shader.ShaderConstants;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
@@ -81,36 +82,62 @@ final class GpuSkinningModelLifecycle {
         target.initialized = false;
         target.releaseBaseResources();
 
-        GL46C.glDeleteVertexArrays(target.vertexArrayObject);
-        GL46C.glDeleteBuffers(target.indexBufferObject);
-        GL46C.glDeleteBuffers(target.positionBufferObject);
-        GL46C.glDeleteBuffers(target.normalBufferObject);
-        GL46C.glDeleteBuffers(target.uv0BufferObject);
-        GL46C.glDeleteBuffers(target.boneIndicesBufferObject);
-        GL46C.glDeleteBuffers(target.boneWeightsBufferObject);
-        GL46C.glDeleteBuffers(target.colorBufferObject);
-        GL46C.glDeleteBuffers(target.uv1BufferObject);
-        GL46C.glDeleteBuffers(target.uv2BufferObject);
-        GL46C.glDeleteBuffers(target.skinnedPositionsBuffer);
-        GL46C.glDeleteBuffers(target.skinnedNormalsBuffer);
+        // GL 对象销毁必须在渲染线程执行。
+        // OpenGL 上下文是线程绑定的：在别的线程（断线时是 Netty IO 线程）调用 glDelete*，
+        // LWJGL 会抛 "No context is current" 并直接 abort 整个 JVM —— 现象是
+        // 「保存并退出到标题」瞬间闪退，没有 Java 异常栈，也没有崩溃报告。
+        // 销毁动作交回渲染线程：已在渲染线程就就地做，否则排到下一次渲染任务。
+        final int vertexArray = target.vertexArrayObject;
+        final int[] buffers = {
+                target.indexBufferObject,
+                target.positionBufferObject,
+                target.normalBufferObject,
+                target.uv0BufferObject,
+                target.boneIndicesBufferObject,
+                target.boneWeightsBufferObject,
+                target.colorBufferObject,
+                target.uv1BufferObject,
+                target.uv2BufferObject,
+                target.skinnedPositionsBuffer,
+                target.skinnedNormalsBuffer
+        };
+        final int[] shaderBuffers = {
+                target.boneMatrixSSBO,
+                target.morphOffsetsSSBO,
+                target.morphWeightsSSBO,
+                target.uvMorphOffsetsSSBO,
+                target.uvMorphWeightsSSBO,
+                target.skinnedUvBuffer
+        };
+        final boolean ownsLightMapTexture = target.lightMapMaterial != null && target.lightMapMaterial.ownsTexture;
+        final int lightMapTexture = ownsLightMapTexture ? target.lightMapMaterial.tex : 0;
+        if (ownsLightMapTexture) {
+            target.lightMapMaterial.tex = 0;
+        }
 
-        if (target.boneMatrixSSBO > 0) GL46C.glDeleteBuffers(target.boneMatrixSSBO);
-        if (target.morphOffsetsSSBO > 0) GL46C.glDeleteBuffers(target.morphOffsetsSSBO);
-        if (target.morphWeightsSSBO > 0) GL46C.glDeleteBuffers(target.morphWeightsSSBO);
-        if (target.uvMorphOffsetsSSBO > 0) GL46C.glDeleteBuffers(target.uvMorphOffsetsSSBO);
-        if (target.uvMorphWeightsSSBO > 0) GL46C.glDeleteBuffers(target.uvMorphWeightsSSBO);
-        if (target.skinnedUvBuffer > 0) GL46C.glDeleteBuffers(target.skinnedUvBuffer);
+        GlDisposal.onRenderThread(() -> {
+            GL46C.glDeleteVertexArrays(vertexArray);
+            for (int buffer : buffers) {
+                if (buffer > 0) {
+                    GL46C.glDeleteBuffers(buffer);
+                }
+            }
+            for (int shaderBuffer : shaderBuffers) {
+                if (shaderBuffer > 0) {
+                    GL46C.glDeleteBuffers(shaderBuffer);
+                }
+            }
+            if (lightMapTexture > 0) {
+                GL46C.glDeleteTextures(lightMapTexture);
+            }
+        });
+
         target.boneMatrixSSBO = 0;
         target.morphOffsetsSSBO = 0;
         target.morphWeightsSSBO = 0;
         target.uvMorphOffsetsSSBO = 0;
         target.uvMorphWeightsSSBO = 0;
         target.skinnedUvBuffer = 0;
-
-        if (target.lightMapMaterial != null && target.lightMapMaterial.ownsTexture && target.lightMapMaterial.tex > 0) {
-            GL46C.glDeleteTextures(target.lightMapMaterial.tex);
-            target.lightMapMaterial.tex = 0;
-        }
 
         if (target.boneMatricesBuffer != null) {
             MemoryUtil.memFree(target.boneMatricesBuffer);

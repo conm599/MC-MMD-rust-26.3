@@ -1,5 +1,6 @@
 package com.shiroha.mmdskin.fabric.register;
 
+import com.shiroha.mmdskin.distrib.ModelDistributionClient;
 import com.shiroha.mmdskin.player.sync.BoneSyncManager;
 import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
 import com.shiroha.mmdskin.config.UIConstants;
@@ -47,6 +48,9 @@ final class FabricClientRuntimeHooks {
     void register(Minecraft minecraft) {
         ClientTickEvents.END_CLIENT_TICK.register(client -> onClientTick(minecraft));
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> client.execute(() -> onJoin(client)));
+        // 注意：DISCONNECT 事件在 Netty IO 线程触发（JOIN 也是）。清理链路里会删 GL 对象，
+        // 而 GL 上下文是线程绑定的 —— 因此所有 glDelete* 一律走 GlDisposal 交回渲染线程，
+        // 绝不能在这里直接调 GL，否则 LWJGL 会直接 abort JVM（"No context is current"）。
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> onDisconnect());
         HudRenderCallback.EVENT.register((graphics, tickDelta) -> PerformanceHud.render(graphics));
     }
@@ -117,6 +121,7 @@ final class FabricClientRuntimeHooks {
         RagdollManager.getInstance().clearAll();
         MMDCameraController.getInstance().exitStageMode();
         PlayerModelSyncService.onDisconnect();
+        ModelDistributionClient.onDisconnect();
         MmdSkinRendererPlayerHelper.onDisconnect();
         BoneSyncManager.onDisconnect();
         StageClientRuntime.get().sessionService().onDisconnect();

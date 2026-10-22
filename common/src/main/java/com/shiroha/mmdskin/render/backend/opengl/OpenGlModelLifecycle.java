@@ -1,5 +1,6 @@
 package com.shiroha.mmdskin.render.backend.opengl;
 
+import com.shiroha.mmdskin.render.backend.GlDisposal;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
 
@@ -56,19 +57,46 @@ final class OpenGlModelLifecycle {
             target.subMeshDataBuf = null;
         }
 
-        if (target.lightMapMaterial != null && target.lightMapMaterial.ownsTexture && target.lightMapMaterial.tex > 0) {
-            GL46C.glDeleteTextures(target.lightMapMaterial.tex);
+        // GL 对象销毁必须在渲染线程执行（OpenGL 上下文线程绑定，
+        // 非渲染线程调用 glDelete* 会让 LWJGL 直接 abort 整个 JVM）。
+        final int vertexArray = target.vertexArrayObject;
+        final int[] buffers = {
+                target.indexBufferObject,
+                target.vertexBufferObject,
+                target.colorBufferObject,
+                target.normalBufferObject,
+                target.texcoordBufferObject,
+                target.uv1BufferObject,
+                target.uv2BufferObject
+        };
+        final boolean ownsLightMapTexture = target.lightMapMaterial != null && target.lightMapMaterial.ownsTexture;
+        final int lightMapTexture = ownsLightMapTexture ? target.lightMapMaterial.tex : 0;
+        if (ownsLightMapTexture) {
             target.lightMapMaterial.tex = 0;
         }
 
-        GL46C.glDeleteVertexArrays(target.vertexArrayObject);
-        GL46C.glDeleteBuffers(target.indexBufferObject);
-        GL46C.glDeleteBuffers(target.vertexBufferObject);
-        GL46C.glDeleteBuffers(target.colorBufferObject);
-        GL46C.glDeleteBuffers(target.normalBufferObject);
-        GL46C.glDeleteBuffers(target.texcoordBufferObject);
-        GL46C.glDeleteBuffers(target.uv1BufferObject);
-        GL46C.glDeleteBuffers(target.uv2BufferObject);
+        // 作废本地 id：销毁动作可能被排队执行（不在渲染线程时），
+        // 立刻作废可以避免二次 dispose 把同一个名字再删一遍。
+        target.vertexArrayObject = 0;
+        target.indexBufferObject = 0;
+        target.vertexBufferObject = 0;
+        target.colorBufferObject = 0;
+        target.normalBufferObject = 0;
+        target.texcoordBufferObject = 0;
+        target.uv1BufferObject = 0;
+        target.uv2BufferObject = 0;
+
+        GlDisposal.onRenderThread(() -> {
+            GL46C.glDeleteVertexArrays(vertexArray);
+            for (int buffer : buffers) {
+                if (buffer > 0) {
+                    GL46C.glDeleteBuffers(buffer);
+                }
+            }
+            if (lightMapTexture > 0) {
+                GL46C.glDeleteTextures(lightMapTexture);
+            }
+        });
     }
 
     static long getVramUsage(OpenGlModelInstance target) {
