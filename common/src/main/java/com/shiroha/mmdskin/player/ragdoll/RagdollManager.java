@@ -570,15 +570,22 @@ public final class RagdollManager {
 
     /**
      * 死亡实体本体的渲染抑制（MMD 路径 + 原版路径 + 阴影）。
-     * <b>登记即隐藏</b>，不等尸体模型就绪：否则死亡瞬间会出现"本体带着阴影飞走 +
-     * 尸体原地出现"的分离——玩家身体从死亡那一帧起就由尸体管线接管。
+     * <b>尸体能画了才接管</b>，不是"登记即隐藏"：尸体模型是异步加载的（实测 ~80 ms），
+     * 登记到就绪之间有 5 帧左右的空窗；若登记即隐藏，这几帧里本体已被藏掉、尸体又还没
+     * 就绪，角色就会凭空闪一下。所以空窗期让本体继续渲染（死亡动画照播），
+     * 尸体模型就绪后再由它接管——接得上是因为尸体模型就绪时会按已流逝时间对齐死亡动画。
      * 只对死亡实体本体生效：复活后的新实体 health>0，不受抑制。
      */
     public boolean shouldSuppressEntityRender(LivingEntity entity) {
         if (entity == null || !entity.isDeadOrDying()) {
             return false;
         }
-        return findCorpseForEntity(entity) != null;
+        Corpse corpse = findCorpseForEntity(entity);
+        if (corpse == null) {
+            return false;
+        }
+        // 尸体模型还没就绪 -> 本体继续渲染，避免死亡瞬间出现空窗闪烁
+        return corpse.renderReady && corpse.model != null;
     }
 
     /** 是否应隐藏该实体的原版死亡白烟（死亡粒子劫持）。 */
