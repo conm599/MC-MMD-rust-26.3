@@ -1,8 +1,10 @@
 package com.shiroha.mmdskin.player.animation;
 
+import com.shiroha.mmdskin.bridge.runtime.NativeAnimationBridgeHolder;
+import com.shiroha.mmdskin.model.runtime.ManagedModel;
+import com.shiroha.mmdskin.model.runtime.ModelInstance;
 import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
 import com.shiroha.mmdskin.player.runtime.EntityAnimState;
-import com.shiroha.mmdskin.model.runtime.ManagedModel;
 import com.shiroha.mmdskin.player.sync.PlayerActionSyncService;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -10,12 +12,16 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.UseAnim;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 public class AnimationStateManager {
+
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private static final float TRANSITION_TIME = 0.25f;
     static final String DRINK_ANIMATION = "Drink";
@@ -178,7 +184,31 @@ public class AnimationStateManager {
                 || !Objects.equals(model.entityState().layerAnimationKeys[layer], animationKey)) {
             model.entityState().stateLayers[layer] = targetState;
             model.entityState().layerAnimationKeys[layer] = animationKey;
-            model.modelInstance().transitionAnim(model.animationLibrary().animation(animationKey), layer, TRANSITION_TIME);
+            long anim = model.animationLibrary().animation(animationKey);
+            if (targetState == EntityAnimState.State.Die) {
+                // 死亡：硬切到死亡动画并跳过开头的绑定姿势帧。
+                // 用 transitionAnim 交叉淡入的话，渐变终点是死亡动画第 0 帧（站直、手臂微张），
+                // 手臂会从垂着慢慢张开到两侧——看着像角色先僵一下再倒。
+                model.modelInstance().changeAnim(anim, layer);
+                model.modelInstance().setLayerLoop(layer, false);
+                seekLayer(model, layer, RagdollManager.DEATH_ANIM_SKIP_FRAMES);
+            } else {
+                model.modelInstance().transitionAnim(anim, layer, TRANSITION_TIME);
+            }
+        }
+    }
+
+    /** 把指定层的动画时间跳到指定帧。 */
+    private static void seekLayer(ManagedModel model, int layer, float frame) {
+        try {
+            ModelInstance instance = model.modelInstance();
+            if (instance == null) {
+                return;
+            }
+            NativeAnimationBridgeHolder.get().seekLayer(instance.getModelHandle(), layer, frame);
+        } catch (Exception e) {
+            // 跳帧失败不影响主流程，退回从第 0 帧播
+            LOGGER.debug("跳过死亡动画开头帧失败: {}", e.getMessage());
         }
     }
 

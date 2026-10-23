@@ -61,6 +61,15 @@ public final class RagdollManager {
 
     /** 世界坐标 ↔ 模型局部单位换算（与引擎 UNIT_TO_M 一致）。 */
     private static final float MODEL_SCALE = 0.09f;
+
+    /**
+     * 死亡动画要跳过的开头帧数（30fps）。
+     *
+     * <p>MMD 死亡动画的第 0 帧通常是**绑定姿势**（站直、手臂微张）。死亡时若从第 0 帧
+     * 渐变过去，交叉淡入会让手臂从"垂着"慢慢"张开到两侧"——看起来就是角色先僵一下。
+     * 跳过开头几帧，渐变的目标一开始就在"已经要倒"的状态，手臂不会张开。
+     */
+    public static final float DEATH_ANIM_SKIP_FRAMES = 3.0f;
     private static final float DEGREES_TO_RADIANS = (float) Math.PI / 180.0F;
     private static final Vector3f ZERO_TRANSLATION = new Vector3f(0.0f, 0.0f, 0.0f);
 
@@ -475,7 +484,9 @@ public final class RagdollManager {
         instance.changeAnim(dieAnim, 0);
         instance.setLayerLoop(0, false);
         float elapsedSeconds = (System.currentTimeMillis() - corpse.deathTimeMs) / 1000.0f;
-        NativeAnimationBridgeHolder.get().seekLayer(instance.getModelHandle(), 0L, elapsedSeconds * 30.0f);
+        // 按已流逝时间对齐（接得上本体那边），并跳过死亡动画开头的绑定姿势帧
+        NativeAnimationBridgeHolder.get().seekLayer(instance.getModelHandle(), 0L,
+                elapsedSeconds * 30.0f + DEATH_ANIM_SKIP_FRAMES);
     }
 
     /** 启物理；false = 启动失败（记冷却并逐出该尸体）。 */
