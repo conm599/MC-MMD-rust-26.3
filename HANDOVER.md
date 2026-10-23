@@ -1,8 +1,10 @@
 # MC-MMD-rust 1.1.0 交接说明
 
 > 交付内容：Minecraft 1.20.1 模组「MC-MMD-rust」，含 **死亡布娃娃**功能重写版。
-> 交付日期：2026-10-02　|　分支：`1.20-vr`　|　HEAD：`4051d38`　|　tag：`v1.1.0`
-> 交付 jar：`mmdskin-fabric-1.1.0-1.20.1.jar`（sha256 前缀 `ae0cf7ec37e91c47`）
+> 交付日期：2026-10-23　|　分支：`feature/model-distribution`（基于 `1.20-vr`）　|　HEAD：`93d329a`　|　tag：`v1.1.0`
+> 交付 jar：`mmdskin-fabric-1.1.0-1.20.1.jar`（sha256 前缀 `0a381217f54dc1b5e8fad5d8`）
+> 交付 jar：`mmdskin-forge-1.1.0-1.20.1.jar`（sha256 前缀 `2570ff58f7bd2108fa1e7027`）
+> 相对 `1.20-vr` 领先 6 个提交（模型分发 / 断线崩溃 / 死亡闪烁 / 死亡姿势），全部在 `feature/model-distribution` 分支上
 
 ---
 
@@ -20,6 +22,13 @@
 - 死亡屏劫持（透明屏 / 单击自由观战 / 双击复活）、隐藏死亡白烟、死亡瞬间隐藏玩家本体与影子均可用。
 - 上限逐出、保留策略（附近/定时/永久）、物理保持时长等设置全部生效。
 - **断线/退出存档曾必崩**（2026-10-22 修复，见 §7 末行）：根因是断线清理在 Netty IO 线程删 GL 对象；现所有 GL 销毁走 `GlDisposal` 回渲染线程。
+- **死亡瞬间闪烁已修**（`b9de9cd`）：原来本体一登记就隐藏，尸体模型异步加载 ~80 ms（≈5 帧）空窗里角色凭空消失。
+  改成「尸体能画了才接管」（`shouldSuppressEntityRender` 返回 `corpse.renderReady && corpse.model != null`）。
+- **死亡瞬间「绷直 + 手臂微张」已修**（`2002475`）：死亡走 `transitionAnim` 交叉淡入，渐变终点是死亡动画第 0 帧，
+  而 MMD 死亡动画第 0 帧就是**绑定姿势**（站直、手臂微张）→ 看着像角色先僵一下才跟物理倒。
+  改法：进 `Die` 状态时 `changeAnim` 硬切 + `setLayerLoop(false)` + `seekLayer` 跳过开头几帧
+  （常量 `RagdollManager.DEATH_ANIM_SKIP_FRAMES = 3.0f`）。**若某个模型的 die 动画本身前十几帧都站着，把这个常量调大**。
+- **模型分发功能已实现**（`6b02efd`，详见 §12）：多人联机时房主授权、客户端按需下载，渲染链路零改动。
 - **仍存一个边缘问题**：死亡点紧邻水/岩浆时，尸体可能沉入液体方块被液面深度遮挡，表现为"看不见/贴图丢失"。
   含流体的双射线采样版本实测无改善并更差，已回退（`2b79346` 保留在历史里，可查）。后续若要根治，
   方向是让尸体停在液面（或给布娃娃加浮力），需要改 Rust 物理层。
@@ -163,10 +172,21 @@ Sampler1/2、`shader.clear()`、复位颜色/深度/剔除面。合并上游时�
 
 ## 11. 交付物
 
-- 源码包：`MC-MMD-rust-1.1.0-source.zip`（含完整 git 历史，排除 `build/`、`target/`、`.gradle/`）
-- 可运行包：`mmdskin-fabric-1.1.0-1.20.1.jar`（已在测试实例 mods 目录中验证）
-- 数值存档：`RAGDOLL_PHYSICS_PARAMS.txt`
-- 本交接说明：`HANDOVER.md`
+| 东西 | 说明 |
+|---|---|
+| `MC-MMD-rust-1.1.0-handover.zip` | **主交接包**：源码（含完整 git 历史 + bullet3 子模块）、构建脚本、补丁、成品 jar、Windows dll、依赖 jar、本文档 |
+| `MC-MMD-rust-1.1.0-toolchain.tar.gz` | **离线工具链**（可选）：zigroot（交叉编译器）、venv、gradle-home 缓存、JDK、MC jar —— 不需要离线重建就别解压，占 1.8G |
+| `mmdskin-fabric-1.1.0-1.20.1.jar` | Fabric 成品（内含 `natives/windows-x64/mmd_engine.dll`） |
+| `mmdskin-forge-1.1.0-1.20.1.jar` | Forge 成品（同上） |
+| `MC-MMD-rust-1.1.0-source.zip` | 只含源码+git 历史（无脚本/依赖/工具链） |
+| `fix-death-pose.patch` 等 | 各次修复的独立补丁（`git format-patch` 格式，可直接 `git am`） |
+| `RAGDOLL_PHYSICS_PARAMS.txt` | 物理数值存档（改物理层时对着改） |
+| `HANDOVER.md` | 本文档（详细） |
+| `交接说明.md` | **先看这个**（速查版：状态、怎么编、怎么测、已知坑、下一步） |
+
+- dll md5：`8b52a483bb77a53c8f9bedb9109704eb`（sha256 前缀 `3e301529cf052e7b91a5ea60`）
+- 版本哨兵 v1.1.1：`NativeLibraryLoader.LIBRARY_VERSION` 与 Rust `native_func.rs` 的 `VERSION` **必须同步升**，
+  否则会加载到旧缓存 dll 报 `UnsatisfiedLinkError`
 
 ---
 
@@ -334,3 +354,87 @@ Sampler1/2、`shader.clear()`、复位颜色/深度/剔除面。合并上游时�
 - 断点续传按**文件**粒度（不做半个文件续传）
 - **不碰 `BONE_SYNC`** —— 它那条流式骨骼通道看着没接线，但远端动作本来就是在接收方本地重建的，动了反而会坏
 - 专用服务器无需额外准备：把文件放进 `3d-skin/EntityPlayer/` 即可，模组服务端入口本来就在
+
+---
+
+## 13. 构建流水线（本地重建必读）
+
+### 13.1 三种编译路径
+
+| 目的 | 命令 | 耗时 | 产物 |
+|---|---|---|---|
+| **只验 Java 代码**（最快，日常改代码用这个） | `javac` 直接编 `common/`（308 文件） | ~40 s | class |
+| **重打 jar**（用预编译好的 Windows dll） | `bash buildjar.sh` | ~10 min | 两个 jar |
+| **重编 Rust 原生库**（改了 `rust_engine/` 才需要） | `bash crossbuild.sh` | ~20 min | `mmd_engine.dll` |
+
+### 13.2 只验 Java 代码（推荐日常用）
+
+```bash
+W=/workspace/work
+export JAVA_HOME=$W/zulu17.60.17-ca-jdk17.0.16-linux_x64
+MCJAR=$(cat $W/mcjar.txt)
+CP="$W/stubout:$MCJAR:$(ls $W/libs/*.jar | tr '\n' ':')"
+cd $W/src/MC-MMD-rust-1.1.0/common/src/main/java
+$JAVA_HOME/bin/javac -encoding UTF-8 -nowarn -proc:none -d /tmp/out -cp "$CP" @$W/cs.txt
+```
+
+- `stubout/` 是 Mojang API 桩（16 KB），只为离线编译存在，**不要提交进仓库**
+- `cs.txt` / `fs.txt` / `gs.txt` / `fcs.txt` 是源文件清单，**改完记得重新生成**
+- `forge` 单端直接 `javac` 会报 3 个文件的错（`YsmCompat` / `MobReplacementListEntry` / `MmdSkinRegisterClient`）——
+  **这是 Mojmap vs 官方映射的既有差异，不是你的锅**，Gradle 构建用官方映射能过
+
+### 13.3 重打 jar
+
+`buildjar.sh` 做的事：把仓库 `cp -r` 到 `build-src/` → `patch_buildgradle.py` 改 build.gradle
+指向预编译 dll 并跳过 cargo → Gradle `:fabric:build :forge:build` → 拷到 `/workspace/output` 与 `/workspace/serve`。
+
+**原生库替换**：`buildjar.sh` 会用 `$W/mmd_engine.dll` 覆盖 `rust_engine/target/.../mmd_engine.dll`，
+所以重编 dll 后要手动把新 dll 拷到 `$W/mmd_engine.dll`。
+
+### 13.4 交叉编译（Linux → Windows x64）
+
+- Rust：rsproxy 镜像 + rustc 1.99 + `--cap-lints=allow`
+- C++：**Zig** 当交叉编译器（`zig cc/c++ -target x86_64-pc-windows-gnu`，pypi 清华源装的 zig）
+- 链接器适配层 `zig-{cc,cxx,linker,ar,ranlib}.sh`：处理 Rust 风格 `--target`、`.def` 直传、`.o`→`.obj`、
+  剥 `-nodefaultlibs` 与系统库、`-l:` 语法、自造空 `libpthread.a` 桩
+
+### 13.5 踩过的坑（这三条会直接卡住你）
+
+1. **`rm -rf build-src` 被后台 Gradle 占用** → `Directory not empty` → 脚本 `set -e` 直接退出，
+   **jar 没重新编译但时间戳是新的**（假成功，极易被骗）。
+   脚本已改成先 `mv` 再 `rm`。
+   → **每次打包后必须 `javap` 确认新代码真在包里**，别只看时间戳：
+   ```bash
+   unzip -o -q xxx.jar 'com/shiroha/mmdskin/player/animation/*' -d /tmp/v
+   javap -p -cp /tmp/v com.shiroha.mmdskin.player.animation.AnimationStateManager | grep seekLayer
+   ```
+2. **`cp -r $SRC $BUILD` 在 `$BUILD` 已存在时会把仓库塞进 `$BUILD/MC-MMD-rust-1.1.0/`** →
+   后续 `cd $BUILD` 找不到 `common/build.gradle`。要么先确保 `$BUILD` 不存在，要么 `cp -r $SRC/. $BUILD/`。
+3. **Loom 缓存 `mappings-srg.tiny` 缺失** → `:common:transformProductionForge` 报 `NoSuchFileException`，
+   **Forge 编不过（Fabric 不受影响，所以很容易漏掉）**。
+   位置：`gradle-home/caches/fabric-loom/1.20.1/loom.mappings.1_20_1.layered+hash.<hash>-v2/mappings-srg.tiny`
+   修法：从同级的 `...-v2-forge-1.20.1-47.3.0/` 目录 `cp -p` 补回
+   `mappings-srg.tiny` / `mappings-srg-migrated.tiny` / `mappings-mixin-srg.tiny` / `mappings-srg-named.srg`
+   （同版本内容一致，`mappings.tiny` 两边字节数完全相同可佐证）。
+
+---
+
+## 14. 已知未修 / 下一步
+
+### 14.1 已知未修（都是"房主本地才会触发"的边角）
+
+| 问题 | 位置 | 备注 |
+|---|---|---|
+| 模型目录里的**符号链接**可能自指导致 StackOverflow；软链指向目录外会被分发 | 分发打包逻辑 | 分发功能整体默认三重全关，触发面很小 |
+| OFFER 载荷**无总量上限** | 分发协议 | 单页有上限，但累计没有；恶意房主可打爆客户端内存 |
+| 尸体沉入水/岩浆被液面深度遮挡 | 物理层 | 见 §2，双射线方案实测无改善已回退；根治要改 Rust 物理层（浮力或停在液面） |
+
+### 14.2 建议的下一步
+
+1. **实测死亡姿势**：新包里 `DEATH_ANIM_SKIP_FRAMES = 3.0f`。若某些模型仍"先僵一下"，
+   它的 die 动画很可能前十几帧都保持站姿 → 调大常量；觉得"死得太突然" → 调到 1~2。
+2. **合并分支**：所有改动都在 `feature/model-distribution`（领先 `1.20-vr` 6 个提交），
+   远端 HEAD 仍是默认分支 `1.20-vr`，合并前先决定要不要压成一个 PR。
+3. **分发功能的规模化验证**：目前只做过小规模联机验证，多人同时下载 / 断点续传 / OSS 旁路
+   在真实网络下还没压过。
+4. **物理层**：如果要做浮力或液面支撑，改 `rust_engine/` 后记得同步升版本哨兵（见 §11 末尾）。
