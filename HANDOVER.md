@@ -128,8 +128,10 @@ export GRADLE_OPTS="-Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=10808 -Dhttps.pr
 | `6901e0d` | 改为每次死亡独立实例（多具尸体共存、动作独立） |
 | `2b79346` | 含流体的双射线地面采样（**实测无改善，已回退但保留历史**） |
 | `4051d38` | **GL 销毁延迟到 tick 间隙**（渲染中途删 GL 对象 → id 复用 + 缓存失同步 → 第三具尸体空贴图/闪一下/连锁消失） |
-| `待提交` | **模型分发功能**（多人联机）：房主在服务器 `3d-skin/EntityPlayer/<名字>/` 放模型 + 改 `config/mmdskin/distribution.json` 授权，服务器按限速分块推送，客户端落盘到自己的模型目录后现有渲染链路直接接管（**渲染链路零改动**）。默认三重全关（`acknowledged` / `enabled` / 每模型 `distributable`），房主端只有配置文件、没有 UI。含断点续传、MD5 校验、OSS 直链旁路（服务器出口可降到 0）、两级责任提示页。详见 §12 |
-| `待提交` | **断线/退出存档必崩修复**：Fabric 的 `ClientPlayConnectionEvents.DISCONNECT` 跑在 **Netty IO 线程**，断线清理链路在非渲染线程调 `glDelete*` → LWJGL `No context is current` → **直接 abort 整个 JVM**（无 Java 异常栈、无崩溃报告，世界也存不下来）。修复：新增 `render/backend/GlDisposal.java`，所有 GL 销毁统一经 `GlDisposal.onRenderThread()` 交回渲染线程（`gpu` / `opengl` 两个后端都覆盖）。**清理链路的线程与时序完全不变**，唯一差别是 `glDelete*` 在渲染线程执行 |
+| `6b02efd` | **模型分发功能**（多人联机）：房主在服务器 `3d-skin/EntityPlayer/<名字>/` 放模型 + 改 `config/mmdskin/distribution.json` 授权，服务器按限速分块推送，客户端落盘到自己的模型目录后现有渲染链路直接接管（**渲染链路零改动**）。默认三重全关（`acknowledged` / `enabled` / 每模型 `distributable`），房主端只有配置文件、没有 UI。含断点续传、MD5 校验、OSS 直链旁路（服务器出口可降到 0）、两级责任提示页。详见 §12 |
+| `7c6343c` | **断线/退出存档必崩修复**：Fabric 的 `ClientPlayConnectionEvents.DISCONNECT` 跑在 **Netty IO 线程**，断线清理链路在非渲染线程调 `glDelete*` → LWJGL `No context is current` → **直接 abort 整个 JVM**（无 Java 异常栈、无崩溃报告，世界也存不下来）。修复：新增 `render/backend/GlDisposal.java`，所有 GL 销毁统一经 `GlDisposal.onRenderThread()` 交回渲染线程（`gpu` / `opengl` 两个后端都覆盖）。**清理链路的线程与时序完全不变**，唯一差别是 `glDelete*` 在渲染线程执行 |
+| `b9de9cd` | **死亡瞬间闪烁修复**：原来本体渲染一登记就隐藏，尸体模型异步加载 ~80 ms（≈5 帧）空窗里角色凭空消失。改成「尸体能画了才接管」（`shouldSuppressEntityRender` 返回 `corpse.renderReady && corpse.model != null`），空窗期让本体继续渲染，靠 `startCorpseDeathAnim` 按已流逝时间对齐 Death 动画保证交接连续 |
+| `2002475` | **死亡瞬间「绷直 + 手臂微张」修复**：死亡走 `transitionAnim` 交叉淡入，渐变终点是死亡动画第 0 帧，而 MMD 死亡动画第 0 帧就是**绑定姿势**（站直、手臂微张）——渐变过程手臂从垂着慢慢张开到两侧，看着像角色先僵一下才跟物理倒。改法：进 Die 状态时 `changeAnim` 硬切 + `setLayerLoop(false)` + `seekLayer` 跳到第 3 帧（`RagdollManager.DEATH_ANIM_SKIP_FRAMES`）；尸体侧按已流逝时间对齐的 seek 同样加 3 帧偏移，两边接得上 |
 
 ## 8. 上游引擎层已知缺陷（未改上游源码，全部在调用方规避）
 
