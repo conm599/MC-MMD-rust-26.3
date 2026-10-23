@@ -370,13 +370,15 @@ Sampler1/2、`shader.clear()`、复位颜色/深度/剔除面。合并上游时�
 ### 13.2 只验 Java 代码（推荐日常用）
 
 ```bash
-W=/workspace/work
+W=/workspace/work          # 交接包里就是解压出来的 work/ 这一层
 export JAVA_HOME=$W/zulu17.60.17-ca-jdk17.0.16-linux_x64
-MCJAR=$(cat $W/mcjar.txt)
+MCJAR="$W/$(cat $W/mcjar.txt)"          # 相对 $W 的路径，包内自带 minecraft-merged.jar
 CP="$W/stubout:$MCJAR:$(ls $W/libs/*.jar | tr '\n' ':')"
 cd $W/src/MC-MMD-rust-1.1.0/common/src/main/java
-$JAVA_HOME/bin/javac -encoding UTF-8 -nowarn -proc:none -d /tmp/out -cp "$CP" @$W/cs.txt
+$JAVA_HOME/bin/javac -encoding UTF-8 -nowarn -proc:none -d /tmp/out -cp "$CP" @"$W/cs.txt"
 ```
+
+⚠️ **classpath 必须用绝对路径** —— javac 前要 `cd` 进源码目录，相对路径会失效。
 
 - `stubout/` 是 Mojang API 桩（16 KB），只为离线编译存在，**不要提交进仓库**
 - `cs.txt` / `fs.txt` / `gs.txt` / `fcs.txt` 是源文件清单，**改完记得重新生成**
