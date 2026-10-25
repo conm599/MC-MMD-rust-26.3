@@ -1,5 +1,12 @@
 # MC-MMD-rust
 
+> **MC 26.2 专用版（Fabric 单平台）**
+>
+> 本分支是给 **MC 26.2** 用的 Fabric 版（fabric-loader 0.19.5 / fabric-api 0.158.0+26.2）。
+> MC 26.3 的 Fabric + NeoForge 双平台版在仓库的 \port/26.3\ 分支，Release 标签 \1.0.6-26.3\。
+> 两个版本互不影响，按自己玩的 MC 版本下对应的包。
+
+
 面向 Minecraft **26.3** 的 MMD（MikuMikuDance）模型、动画和物理模组。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
