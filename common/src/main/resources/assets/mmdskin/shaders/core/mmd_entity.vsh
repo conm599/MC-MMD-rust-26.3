@@ -2,11 +2,11 @@
 #extension GL_ARB_separate_shader_objects : require
 
 // 文件职责：把 CPU 或 palette GPU 蒙皮后的 MMD 顶点转换到实体渲染空间。
-// MC 26.3 规范：uniform 全部改为 std140 uniform block，include 语法为 #include <minecraft:xxx.glsl>。
+// MC 26.2 规范：uniform 全部改为 std140 uniform block，include 语法为 #moj_import <minecraft:xxx.glsl>。
 
-#include <minecraft:light.glsl>
-#include <minecraft:fog.glsl>
-#include <minecraft:projection.glsl>
+#moj_import <minecraft:light.glsl>
+#moj_import <minecraft:fog.glsl>
+#moj_import <minecraft:projection.glsl>
 
 #ifdef MMD_GPU_SKINNING
 // DefaultVertexFormat.ENTITY: Position, Color, UV0, UV1, UV2, Normal
@@ -89,7 +89,7 @@ void main() {
     vec4 viewPos = MmdViewMat * modelPosition;
     gl_Position = ProjMat * viewPos;
 
-    // 26.3 的雾拆成球面/柱面两个距离；沿用 1.21.5 的视空间位置，保证与旧版视觉一致。
+    // 雾拆成球面/柱面两个距离；沿用 1.21.5 的视空间位置，保证与旧版视觉一致。
     sphericalVertexDistance = fog_spherical_distance(viewPos.xyz);
     cylindricalVertexDistance = fog_cylindrical_distance(viewPos.xyz);
 

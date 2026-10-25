@@ -2,8 +2,8 @@
 package com.shiroha.mmdskin.client.texture;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.renderpearl.api.GpuFormat;
-import com.mojang.renderpearl.api.textures.GpuTexture;
+import com.mojang.blaze3d.GpuFormat;
+import com.mojang.blaze3d.textures.GpuTexture;
 
 import java.nio.ByteBuffer;
 
@@ -35,7 +35,7 @@ public final class MinecraftTextureDevice implements TextureDevice {
             // 抛 "Dest texture (2048x2048) is not large enough to write a rectangle of 2048x1 at 0x2048"
             // → 所有纹理上传失败 → 模型只能渲染成白色（用户看到的"白膜"）。
             ByteBuffer bytes = upload.rgbaPixels().duplicate();
-            com.mojang.renderpearl.api.commands.CommandEncoder encoder =
+            com.mojang.blaze3d.systems.CommandEncoder encoder =
                     RenderSystem.getDevice().createCommandEncoder();
             encoder.writeToTexture(texture, bytes, 0, 0, 0, 0, upload.width(), upload.height());
             // 26.3 的 CommandEncoder 必须 submit() 才会真正下发到 GPU。

@@ -47,5 +47,5 @@ rootProject.name = 'mmdskin'
 //
 // 注意：NeoForge 端**不能**用 Architectury —— architectury-neoforge 最高只有
 // 21.0.5（对应 MC 1.21.x），没有 26.x 版本，因此改用官方 net.neoforged.moddev 插件。
+// 26.2 版只保留 Fabric 平台（NeoForge 的 26.x 支持没有 26.2 的发行版）。
 include 'fabric'
-include 'neoforge'

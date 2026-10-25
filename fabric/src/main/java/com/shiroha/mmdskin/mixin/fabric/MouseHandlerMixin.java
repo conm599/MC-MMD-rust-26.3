@@ -97,12 +97,15 @@ public abstract class MouseHandlerMixin {
      * the accumulated deltas that would otherwise turn the player.
      */
     @Inject(method = "onMove", at = @At("TAIL"))
-    private void onDeathCamMove(long window, double xpos, double ypos, double dx, double dy, CallbackInfo ci) {
+    private void onDeathCamMove(long window, double xpos, double ypos, CallbackInfo ci) {
         RagdollManager ragdoll = RagdollManager.getInstance();
         if (!ragdoll.isDeathCamObserve()) {
             return;
         }
-        ragdoll.deathCamMouseMove(dx, dy);
+        // 26.2 的 onMove(long, double, double) 给的是**绝对位置**（增量在方法内部算好
+        // 累加到 accumulatedDX/accumulatedDY），26.3 才改成直接传 (xpos, ypos, dx, dy)。
+        // 这里用累计量当这一帧的位移。
+        ragdoll.deathCamMouseMove(this.accumulatedDX, this.accumulatedDY);
         // Do not let the mouse delta turn the player while free-observing.
         this.accumulatedDX = 0.0;
         this.accumulatedDY = 0.0;

@@ -2,46 +2,44 @@
 package com.shiroha.mmdskin.mixin.fabric;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.shiroha.mmdskin.client.MmdClientRenderRuntime;
 import com.shiroha.mmdskin.compat.vr.VRArmHider;
 import com.shiroha.mmdskin.config.UIConstants;
 import com.shiroha.mmdskin.fabric.compat.YsmCompat;
-import com.shiroha.mmdskin.client.MmdClientRenderRuntime;
 import com.shiroha.mmdskin.ui.network.PlayerModelSyncManager;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.FirstPersonHandsAndItemsRenderer;
+import net.minecraft.client.renderer.ItemInHandRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.state.level.FirstPersonHandsAndItemsRenderState;
-import net.minecraft.client.renderer.state.level.PlayerRenderState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(value = FirstPersonHandsAndItemsRenderer.class, priority = 900)
+@Mixin(value = ItemInHandRenderer.class, priority = 900)
 public abstract class ItemInHandRendererMixin {
     /**
-     * 26.3 的变化：{@code ItemInHandRenderer} 被拆成
-     * {@code FirstPersonHandsAndItemsRenderer}，手臂与手持物的绘制合并进了
-     * {@code submitHandsWithItems(...)}；旧的 {@code renderArmWithItem} /
-     * {@code renderPlayerArm} 两个方法已经不存在，因此这两处注入合并到下面这一个。
+     * 26.2 适配：26.3 把 {@code ItemInHandRenderer} 拆成了
+     * {@code FirstPersonHandsAndItemsRenderer}（手臂与手持物的绘制合并进
+     * {@code submitHandsWithItems(...)}），26.2 还没拆，入口仍是
+     * {@code ItemInHandRenderer.submitHandsWithItems(...)}，
+     * 只是参数还是 {@code LocalPlayer} 而不是 26.3 的两个 render state。
+     *
+     * <p>语义与 26.3 一致：MMD 模型在第一人称下生效时，原版手臂（含手持物）整段不画。
      */
     @Inject(
-            method = "submitHandsWithItems(FLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/PlayerRenderState;Lnet/minecraft/client/renderer/state/level/FirstPersonHandsAndItemsRenderState;)V",
+            method = "submitHandsWithItems(FLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/player/LocalPlayer;I)V",
             at = @At("HEAD"), cancellable = true)
     private void onSubmitHandsWithItems(float partialTick,
                                         PoseStack poseStack,
                                         SubmitNodeCollector collector,
-                                        PlayerRenderState playerState,
-                                        FirstPersonHandsAndItemsRenderState handsState,
+                                        LocalPlayer player,
+                                        int light,
                                         CallbackInfo ci) {
         if (VRArmHider.shouldHideVRArms()) {
             ci.cancel();
             return;
         }
 
-        Minecraft minecraft = Minecraft.getInstance();
-        LocalPlayer player = minecraft.player;
         if (player == null) {
             return;
         }

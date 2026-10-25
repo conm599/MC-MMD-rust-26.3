@@ -568,7 +568,7 @@ public class MMDCameraController {
         if (mc.gui.screen() != null) return;
 
         // 26.3 起窗口层从 GLFW 换成 SDL，ESC 状态统一由 InputConstants.isKeyDown 查询
-        boolean escNow = InputConstants.isKeyDown(InputConstants.KEY_ESCAPE);
+        boolean escNow = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_ESCAPE);
 
         if (escNow && !escWasPressed) {
             if (state == StageState.PLAYING) {

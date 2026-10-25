@@ -95,9 +95,9 @@ public class ConfigWheelScreen extends AbstractWheelScreen {
                 // 26.3 底层输入栈换成了 SDL，GLFW 的按键查询改为 InputConstants.isKeyDown（同样按扫描码索引）
                 InputConstants.Key key = KeyMappingUtil.getBoundKey(monitoredKey);
                 isDown = key != null
-                        && key.getType() == InputConstants.Type.KEYBOARD
+                        && key.getType() == InputConstants.Type.KEYSYM
                         && key.getValue() != -1
-                        && InputConstants.isKeyDown(key.getValue());
+                        && InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), key.getValue());
             }
 
             if (!isDown) {

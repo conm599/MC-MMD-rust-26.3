@@ -13,10 +13,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(EntityRenderer.class)
 public abstract class EntityRendererCullingMixin {
-    // 26.3 起 getBoundingBoxForCulling 多了一个 partialTick 参数
-    // （1.21.5 是 getBoundingBoxForCulling(T)）。
-    @Inject(method = "getBoundingBoxForCulling", at = @At("RETURN"), cancellable = true)
-    private void mmdskin$expandCullingBounds(Entity entity, float partialTick,
+    // 26.2 的签名是 getBoundingBoxForCulling(Entity)，
+    // 26.3 起才多了一个 partialTick 参数（描述符必须跟着版本走，否则 mixin 注入失败）。
+    @Inject(method = "getBoundingBoxForCulling(Lnet/minecraft/world/entity/Entity;)Lnet/minecraft/world/phys/AABB;",
+            at = @At("RETURN"), cancellable = true)
+    private void mmdskin$expandCullingBounds(Entity entity,
                                              CallbackInfoReturnable<AABB> callback) {
         if (entity instanceof LivingEntity living) {
             callback.setReturnValue(MmdCullingBounds.expand(living, callback.getReturnValue()));

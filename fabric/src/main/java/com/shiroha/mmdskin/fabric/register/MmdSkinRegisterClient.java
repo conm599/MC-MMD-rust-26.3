@@ -35,7 +35,7 @@ public final class MmdSkinRegisterClient {
 
     static final KeyMapping KEY_CONFIG_WHEEL = new KeyMapping(
         "key.mmdskin.config_wheel",
-        InputConstants.Type.KEYBOARD,
+        InputConstants.Type.KEYSYM,
         InputConstants.KEY_LALT,
         KEY_CATEGORY
     );
@@ -50,7 +50,7 @@ public final class MmdSkinRegisterClient {
         for (int i = 0; i < KEY_QUICK_MODELS.length; i++) {
             KEY_QUICK_MODELS[i] = new KeyMapping(
                 "key.mmdskin.quick_model_" + (i + 1),
-                InputConstants.Type.KEYBOARD,
+                InputConstants.Type.KEYSYM,
                 InputConstants.UNKNOWN.getValue(),
                 KEY_CATEGORY
             );

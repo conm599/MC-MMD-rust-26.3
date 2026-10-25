@@ -177,7 +177,7 @@ public final class PlayerModelOverrideScreen extends Screen {
         if (key == InputConstants.KEY_TAB) {
             return true;
         }
-        return InputConstants.Type.KEYBOARD.getOrCreate(key).getValue() == InputConstants.KEY_TAB;
+        return InputConstants.Type.KEYSYM.getOrCreate(key).getValue() == InputConstants.KEY_TAB;
     }
 
     /**

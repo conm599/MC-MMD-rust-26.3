@@ -30,10 +30,14 @@ public abstract class FabricPlayerRendererMixin
 
     // 26.3 起 LivingEntityRenderer 的入口从 render(...) 换成 submit(...)，
     // 并且不再传 packedLight（光照等级在 EntityRenderState.lightCoords 里）。
+    //
+    // 26.2 适配：26.2 的 submit 只有泛型那一个（擦除后参数是 EntityRenderState），
+    // 没有 26.3 的 LivingEntityRenderState 重载，所以描述符与回调参数都要用
+    // EntityRenderState（内部照样按 instanceof 分流）。
     @Inject(
-            method = "submit(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
+            method = "submit(Lnet/minecraft/client/renderer/entity/state/EntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
             at = @At("HEAD"), cancellable = true)
-    private void mmdskin$routeBody(LivingEntityRenderState state, PoseStack poseStack,
+    private void mmdskin$routeBody(EntityRenderState state, PoseStack poseStack,
                                    SubmitNodeCollector collector, CameraRenderState camera,
                                    CallbackInfo callback) {
         if (!(state instanceof MmdRenderStateExtension extension)) {

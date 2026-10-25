@@ -69,11 +69,11 @@ public final class PlayerAnimationIntentExtractor {
             InteractionHand hand = player.getUsedItemHand();
             return actionFor(player.getItemInHand(hand), hand, true);
         }
-        // 26.3 起挥动状态改由 LivingEntity.SwingState 维护，挥动手通过 getCurrentSwing() 获取
-        if (player.isSwinging()) {
-            var swing = player.getCurrentSwing();
+        // 26.2 的挥动手就是 swingingArm 本身（26.3 才改成 SwingDescription.hand()）
+        if (player.swinging) {
+            var swing = player.swingingArm;
             if (swing != null) {
-                InteractionHand hand = swing.hand();
+                InteractionHand hand = swing;
                 return actionFor(player.getItemInHand(hand), hand, false);
             }
         }

@@ -91,9 +91,9 @@ final class FabricClientRuntimeHooks {
         LevelRenderEvents.COLLECT_SUBMITS.register(context -> {
             MmdClientRenderRuntime runtime = MmdClientRenderRuntime.current();
             LocalPlayer player = Minecraft.getInstance().player;
-            // 26.3 的 LevelRenderState.worldPartialTicks 就是 1.21.5 的
-            // tickCounter().getGameTimeDeltaPartialTick(false)。
-            float partialTick = context.levelState().worldPartialTicks;
+            // 26.3 的 LevelRenderState.worldPartialTicks 在 26.2 里还没有这个字段，
+            // 对应的是 DeltaTracker.getGameTimeDeltaPartialTick(false)。
+            float partialTick = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
             runtime.firstPerson().localModels().contribute(
                     Minecraft.getInstance(), context.gameRenderer().mainCamera(), partialTick,
                     runtime.frameId(), runtime.frameDeltaSeconds(),
@@ -125,11 +125,10 @@ final class FabricClientRuntimeHooks {
                     @Override
                     protected void apply(ResourceManager resourceManager, PreparableReloadListener.SharedState state) {
                         MmdRenderPipelines.deactivate();
-                        // 26.3 的 ShaderManager 不再公开 getShader，改用管线层提供的 ResourceManager 版着色器源。
-                        try (var shaderSource = MmdRenderPipelines.shaderSource(resourceManager)) {
-                            MmdRenderPipelines.validateAndActivate(
-                                    RenderSystem.getDevice(), shaderSource);
-                        }
+                        // 26.2 的 ShaderSource 是函数式接口（没有 close），
+                        // include 由管线层自己用 MC 的 GlslPreprocessor 预处理。
+                        MmdRenderPipelines.validateAndActivate(
+                                RenderSystem.getDevice(), MmdRenderPipelines.shaderSource(resourceManager));
                     }
                 });
     }

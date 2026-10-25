@@ -2,9 +2,9 @@
 #extension GL_ARB_separate_shader_objects : require
 
 // 文件职责：计算 MMD 实体主通道、Toon、描边与发光片元颜色。
-// MC 26.3 规范：uniform 全部改为 std140 uniform block，include 语法为 #include <minecraft:xxx.glsl>。
+// MC 26.2 规范：uniform 全部改为 std140 uniform block，include 语法为 #moj_import <minecraft:xxx.glsl>。
 
-#include <minecraft:fog.glsl>
+#moj_import <minecraft:fog.glsl>
 
 uniform sampler2D Sampler0;
 

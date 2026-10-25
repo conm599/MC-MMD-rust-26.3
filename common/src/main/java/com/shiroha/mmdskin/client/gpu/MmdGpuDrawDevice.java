@@ -2,21 +2,22 @@
 package com.shiroha.mmdskin.client.gpu;
 
 import com.mojang.blaze3d.buffers.Std140Builder;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.renderpearl.api.GpuFormat;
-import com.mojang.renderpearl.api.buffers.GpuBuffer;
-import com.mojang.renderpearl.api.commands.CommandEncoder;
-import com.mojang.renderpearl.api.commands.RenderPass;
-import com.mojang.renderpearl.api.commands.RenderPassDescriptor;
-import com.mojang.renderpearl.api.pipeline.CompiledRenderPipeline;
-import com.mojang.renderpearl.api.pipeline.IndexType;
-import com.mojang.renderpearl.api.textures.AddressMode;
-import com.mojang.renderpearl.api.textures.FilterMode;
-import com.mojang.renderpearl.api.textures.GpuSampler;
-import com.mojang.renderpearl.api.textures.GpuTexture;
-import com.mojang.renderpearl.api.textures.GpuTextureView;
+import com.mojang.blaze3d.GpuFormat;
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.systems.CommandEncoder;
+import com.mojang.blaze3d.systems.RenderPass;
+import com.mojang.blaze3d.systems.RenderPassDescriptor;
+import com.mojang.blaze3d.pipeline.CompiledRenderPipeline;
+import com.mojang.blaze3d.IndexType;
+import com.mojang.blaze3d.textures.AddressMode;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.textures.GpuSampler;
+import com.mojang.blaze3d.textures.GpuTexture;
+import com.mojang.blaze3d.textures.GpuTextureView;
 import com.shiroha.mmdskin.bridge.render.NativeDrawCommand;
 import com.shiroha.mmdskin.bridge.render.NativeRenderDataPort;
 import com.shiroha.mmdskin.client.draw.MmdDrawDevice;
@@ -108,7 +109,7 @@ public final class MmdGpuDrawDevice implements MmdDrawDevice, ModelGpuMetricsPor
 
         RenderTarget target = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         GpuTextureView color = target.getColorTextureView();
-        GpuTextureView depth = target.hasDepth() ? target.getDepthTextureView() : null;
+        GpuTextureView depth = target.useDepth ? target.getDepthTextureView() : null;
         if (color == null) {
             closeTextureLeases(draws);
             return;
@@ -297,7 +298,7 @@ public final class MmdGpuDrawDevice implements MmdDrawDevice, ModelGpuMetricsPor
     private void submit(RenderPass pass, PreparedDraw draw, int slot, GpuTexture fallback) {
         NativeDrawCommand command = draw.command();
         GpuMesh mesh = draw.mesh();
-        CompiledRenderPipeline pipeline = MmdRenderPipelines.compiledPipeline(draw.pipeline(), mesh.gpuSkinning);
+        RenderPipeline pipeline = MmdRenderPipelines.compiledPipeline(draw.pipeline(), mesh.gpuSkinning);
         if (pipeline == null) {
             // 管线没编译成功时静默跳过 = "MMD 模型偶尔/完全不出现且没有任何报错"。
             MmdRenderPipelines.logMissingPipeline(draw.pipeline(), mesh.gpuSkinning);
@@ -314,7 +315,7 @@ public final class MmdGpuDrawDevice implements MmdDrawDevice, ModelGpuMetricsPor
         GpuTexture texture = draw.texture() == null ? fallback : draw.texture();
         GpuTextureView view = textureView(texture);
         if (view != null) {
-            pass.setUniform("Sampler0", view, sampler());
+            pass.bindTexture("Sampler0", view, sampler());
         }
         pass.setVertexBuffer(0, mesh.vertexBuffer.slice());
         pass.setIndexBuffer(draw.outline() ? mesh.outlineIndexBuffer : mesh.indexBuffer, mesh.indexType);
@@ -390,7 +391,9 @@ public final class MmdGpuDrawDevice implements MmdDrawDevice, ModelGpuMetricsPor
     }
 
     private GpuSampler sampler() {
-        if (sampler == null || sampler.isClosed()) {
+        // 26.2 的 GpuSampler 没有 isClosed()，取的是 SamplerCache 里的共享实例，
+        // 缓存不会在我们用完时把它关掉，这里只在没拿到过时重建。
+        if (sampler == null) {
             sampler = RenderSystem.getSamplerCache().getSampler(
                     AddressMode.REPEAT, AddressMode.REPEAT, FilterMode.LINEAR, FilterMode.LINEAR, false);
         }

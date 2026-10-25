@@ -112,7 +112,7 @@ public class MorphWheelScreen extends AbstractWheelScreen {
         if (triggerKey != null) {
             com.mojang.blaze3d.platform.InputConstants.Key boundKey = KeyMappingUtil.getBoundKey(triggerKey);
             if (boundKey != null
-                    && boundKey.getType() == com.mojang.blaze3d.platform.InputConstants.Type.KEYBOARD
+                    && boundKey.getType() == com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM
                     && boundKey.getValue() == event.key()) {
                 if (selectedSlot >= 0 && selectedSlot < morphSlots.size()) {
                     executeMorph(morphSlots.get(selectedSlot));

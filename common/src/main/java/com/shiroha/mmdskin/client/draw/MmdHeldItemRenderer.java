@@ -54,8 +54,8 @@ public final class MmdHeldItemRenderer {
                 return;
             }
             poseStack.mulPose(handTransform);
-            // 26.3 的 PoseStack 用 rotate(Quaternionfc) 代替旧的 mulPose(Quaternionf)
-            poseStack.rotate(ITEM_ORIENTATION);
+            // 26.2 的 PoseStack 旋转接口是 mulPose(Quaternionfc)（26.3 才改名成 rotate）
+            poseStack.mulPose(ITEM_ORIENTATION);
             float itemScale = 10.0F * model.heldItemScale();
             poseStack.scale(itemScale, itemScale, itemScale);
             // 26.3：ItemStackRenderState.render(...) -> submit(pose, collector, light, overlay, outlineColor)
