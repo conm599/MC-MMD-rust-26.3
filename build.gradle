@@ -22,7 +22,7 @@ allprojects {
 	apply plugin: 'java'
 
 	group = maven_group
-	version = '1.0.6-26.2'
+	version = '1.0.7-26.2'
 
 	repositories {
 		maven { url = 'https://maven.fabricmc.net/' }
