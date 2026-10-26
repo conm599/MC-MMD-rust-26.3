@@ -81,7 +81,13 @@ public final class MmdRenderRouter {
             MmdDrawRequest request = new MmdDrawRequest(
                     model, snapshot, pipeline,
                     snapshot.visibility() == MmdRenderSnapshot.Visibility.TRANSLUCENT);
-            if (snapshot.context() == MmdRenderSnapshot.Context.INVENTORY) {
+            if (runtime.inventory().active()) {
+                // GUI 实体预览（背包里的玩家模型）走背包自己的队列。
+                //
+                // 这里必须看**当前**会话是否活跃，而不是快照里采集时记下的上下文：
+                // 26.x 的背包预览是"先提取渲染状态、稍后在 GUI 阶段再提交"两段，
+                // 提交时采集阶段的会话早就关了，按快照上下文走会直接抛
+                // "inventory render session is not active" 把游戏带崩。
                 runtime.inventory().enqueue(request, lease);
             } else {
                 runtime.frameQueue().enqueue(request, lease);
